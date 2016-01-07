@@ -1,0 +1,48 @@
+body {
+	background-color: #e5f2ff;
+}
+
+body header a img {
+	/*margin: 10px;*/
+	/*display: block;*/
+}
+
+body header div {
+	display: inline-block;
+}
+
+a {
+	text-decoration: none;
+	color: black;
+}
+
+nav ul li {
+	display: inline-block;
+	width: 33%;
+}
+
+nav ul li a {
+	padding: 10px;
+	color: white;
+	background: #ff8d1a;
+	border-radius: 10px;
+	font-family: "Arial";
+}
+
+nav ul li a:hover {
+	background: #ffa54d;
+	box-shadow: 1px 1px #737373;
+}
+
+#footer {
+	font-size: 80%;
+	line-height: 3px;
+	text-align: right;
+	margin: 20px;
+	border-top: 1px solid gray;
+	border-bottom: 1px solid gray;
+}
+
+#footer a:hover {
+	font-weight: bold;
+}
