@@ -19,9 +19,11 @@ public class TestCheckers {
 		int outcome;
 
 		int i = 1;
-		System.out.println("Welcome to Checkers!");
 		System.out.println();
-		System.out.println("TURN " + i);
+		System.out.println("\t\tWELCOME TO CHECKERS!");
+		System.out.println("\tLegend: r = red piece, b = black piece, R = red king, B = black king");
+		System.out.println();
+		System.out.println("\tTURN " + i);
 		System.out.println();
 		while ((outcome = game.isGameOver()) == 0) {
 			System.out.println("Board:");
@@ -47,22 +49,30 @@ public class TestCheckers {
 			// If the move is a capture, check capture sequences.
 			if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
 				while (game.canCaptureForward(coordinates[2], coordinates[3], game.getCurrentTurn()) || 
-					  game.canCaptureBackward(coordinates[2], coordinates[3], game.getCurrentTurn())) {
+					   game.canCaptureBackward(coordinates[2], coordinates[3], game.getCurrentTurn())) {
+
+					i++;
+					System.out.println("Board:");
+					game.printBoard();
+
 					// Ask if user wants to initiaze a capture sequence.
-					do {
+					while (true) {
 						System.out.print("Double jump? (yes/no) ");
 						line = reader.nextLine();
 						if (line.toLowerCase().equals("help")) {
-							System.out.println("To specify a square, simply use the following format: (vertical, horizontal). Enter \"exit\" to terminate game.");
+							printHelpString();
+							continue;
 						} else if (line.toLowerCase().equals("exit")) {
 							return;
 						}
-						System.out.println("Invalid format. Please try again. Enter \"help\" for usage.");
-					} while (!line.toLowerCase().equals("yes") && !line.toLowerCase().equals("no"));
+						if (!line.toLowerCase().equals("yes") && !line.toLowerCase().equals("no")) {
+							System.out.println("Invalid format. Please try again. Enter \"help\" for usage.");
+						} else {
+							break;
+						}
+					}
 
 					if (line.equals("yes")) { // If yes, repeat the process until the capture sequence is over.
-						System.out.println("Board:");
-						game.printBoard();
 						System.out.print("Enter next move (must be capture): ");
 
 						// Have the user make the next move.
@@ -82,7 +92,8 @@ public class TestCheckers {
 								System.out.print("Illegal move. Please enter a valid move: ");
 								line = reader.nextLine();
 								while (line.toLowerCase().equals("help")) {
-									System.out.println("To specify a square, simply use the following format: (vertical, horizontal). Enter \"exit\" to terminate game.");
+									printHelpString();
+									System.out.print("Move: ");
 									line = reader.nextLine();
 								}
 								if (line.toLowerCase().equals("exit")) {
@@ -124,19 +135,23 @@ public class TestCheckers {
 	 * @return Returns the status of the function - 0 if everything should proceed as normal, -1 to abort.
 	 */
 	public static int getMoveAsInput(int[] coordinates, Scanner reader, boolean isDoubleJump) {
-		String line, x = "", y = "";
+		String line, x, y;
 		int i;
 		boolean notValidInput;
 
 		do {
+			notValidInput = false;
 			try {
-				notValidInput = false;
 				if (!isDoubleJump) { // If a double jump is in progress, the source square is unchanged, so skip this step.
+					x = "";
+					y = "";
+
 					System.out.print("Source square: ");
 					line = reader.nextLine().replace(" ", ""); // Remove whitespace.
 
 					while (line.toLowerCase().equals("help")) {
-						System.out.println("To specify a square, simply use the following format: (vertical, horizontal). Enter \"exit\" to terminate game.");
+						printHelpString();
+						System.out.print("Source square: ");
 						line = reader.nextLine();
 					}
 					if (line.toLowerCase().equals("exit")) {
@@ -159,18 +174,20 @@ public class TestCheckers {
 					coordinates[0] = Integer.parseInt(x);
 					coordinates[1] = Integer.parseInt(y);
 
-					x = "";
-					y = "";
 				} else {
 					coordinates[0] = coordinates[2];
 					coordinates[1] = coordinates[3];
 					System.out.println("Source square is (" + coordinates[0] + ", " + coordinates[1] + ")");
 				}
+				x = "";
+				y = "";
+
 				System.out.print("Destination square: ");
 				line = reader.nextLine().replace(" ", "");
 
 				while (line.toLowerCase().equals("help")) {
-					System.out.println("To specify a square, simply use the following format: (vertical, horizontal). Enter \"exit\" to terminate game.");
+					printHelpString();
+					System.out.print("Destination square: ");
 					line = reader.nextLine();
 				}
 				if (line.toLowerCase().equals("exit")) {
@@ -201,5 +218,14 @@ public class TestCheckers {
 		} while (notValidInput);
 
 		return 0;
+	}
+
+	/**
+	 * Prints the help message upon user request.
+	 */
+	private static void printHelpString() {
+		System.out.println("\tTo specify a square, simply use the following format: (vertical, horizontal).");
+		System.out.println("\tEnter \"exit\" to terminate game or \"help\" for help.");
+		System.out.println("\tLegend: r = red piece, b = black piece, R = red king, B = black king");
 	}
 }

@@ -8,7 +8,7 @@ public class Checkers {
 	public static final int drawMoveLimit = 40; // The maximum number of consecutive moves, on one side, without a capture before the game draws. 
 
 	private Square[][] board; // The checkers board. By convention, the upper left corner, on black's side, is [0, 0], with the first dimension 
-						   // moving vertically downwards and the second moving horizontally to the right.
+						      // moving vertically downwards and the second moving horizontally to the right.
 	private int currentTurn; // Which player's turn it is.
 	private int drawMoveCount; // The number of consecutive moves without a capture that have passed. When drawMoveCount >= drawMoveLimit, the
 							   // game draws be default.
@@ -94,7 +94,12 @@ public class Checkers {
 			} else {
 				this.redCount--;				
 			}
+
+			this.drawMoveCount = 0; // A capture was made, so reset the draw counter.
+		} else {
+			this.drawMoveCount++; // Another non-capture move was made - increment draw counter.
 		}
+
 		// Move the piece to its new square.
 		this.board[i_new][j_new] = new Square(this.board[i_initial][j_initial]);
 		this.board[i_initial][j_initial].setEmpty();
@@ -123,6 +128,12 @@ public class Checkers {
 		} else if (this.blackCount == 0) {
 			return 1; // Red win - black has no remaining pieces.
 		}
+
+		// Check the draw condition.
+		if (this.drawMoveCount >= this.drawMoveLimit) {
+			return 2;
+		}
+
 		// Check if either player can make any legal moves.
 		boolean redHasValidMoves = false;
 		boolean blackHasValidMoves = false;
@@ -344,12 +355,12 @@ public class Checkers {
 		} else {
 			if (i - 2 < BOARD_SIZE) {
 				if (j - 2 >= 0) {
-					if (this.board[i - 2][j - 2].isEmpty() && !this.board[i - 1][j - 1].isRed() && !this.board[i - 1][j - 1].isEmpty()) {
+					if (this.board[i - 2][j - 2].isEmpty() && this.board[i - 1][j - 1].isRed()) {
 						return true; // Can capture diagonally down and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i - 2][j + 2].isEmpty() && !this.board[i - 1][j + 1].isRed() && !this.board[i - 1][j + 1].isEmpty()) {
+					if (this.board[i - 2][j + 2].isEmpty() && this.board[i - 1][j + 1].isRed()) {
 						return true; // Can capture diagonally down and right.
 					}
 				}
