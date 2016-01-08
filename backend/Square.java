@@ -9,12 +9,17 @@ public class Square {
 	public static final int BLACK_KING = -2; // Represents a square occupied by a kinged black piece.
 
 	private int state; // Which piece is occupying this square, if any.
+	private int i; // Vertical coordinate
+	private int j; // Horizontal coordinate
 
 	/**
 	 * Basic constructor.
+	 *
 	 */
-	public Square(int state) {
+	public Square(int state, int i, int j) {
 		this.state = state;
+		this.i = i;
+		this.j = j;
 	}
 
 	/**
@@ -37,6 +42,23 @@ public class Square {
 				this.state = Square.BLACK;
 			}
 		}
+
+		this.i = s.getVerticalCoord();
+		this.j = s.getHorizontalCoord();
+	}
+
+	/**
+	 * @return Returns this Square's vertical coordinate.
+	 */
+	public int getVerticalCoord() {
+		return this.i;
+	}
+
+	/**
+	 * @return Returns this Square's horizontal coordinate.
+	 */
+	public int getHorizontalCoord() {
+		return this.j;
 	}
 
 	/**
@@ -46,6 +68,14 @@ public class Square {
 	public boolean isRed() {
 		return this.state == Square.RED || this.state == Square.RED_KING;
 	}
+
+	/**
+	 * Returns if a black piece is on this square.
+	 * @return True if a black piece occupies this square, false otherwise.
+	 */
+	public boolean isBlack() {
+		return this.state == Square.BLACK || this.state == Square.BLACK_KING;
+	}	
 
 	/**
 	 * Returns if no piece is on this square.

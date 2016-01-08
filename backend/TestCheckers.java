@@ -1,15 +1,166 @@
 import java.util.Scanner;
+import java.util.Random;
 
 /**
  * Class for testing code.
  */
 public class TestCheckers {
 	public static void main(String[] args) {
-		playThroughConsole();
+		playThroughConsole(new RandomPlayer());
 	}
 
 	/**
-	 * Begins an interactive game of Checkers that can be played through the console, for testing purposes.
+	 * Begins an interactive game of Checkers that can be played against the given Player through the console, for testing purposes.
+	 * @param player The player to play against.
+	 */
+	public static void playThroughConsole(Player player) {
+		Checkers game = new Checkers();
+		Scanner reader = new Scanner(System.in);
+		int[] coordinates = new int[4];
+		String line;
+		int outcome;
+
+		int i = 1;
+		System.out.println();
+		System.out.println("\t\tWELCOME TO CHECKERS!");
+		System.out.println("\tLegend: r = red piece, b = black piece, R = red king, B = black king");
+		System.out.println();
+		System.out.println("\tTURN " + i);
+		System.out.println();
+
+		while ((outcome = game.isGameOver()) == 0) {
+			System.out.println("Board:");
+			game.printBoard();
+
+			if (game.getCurrentTurn() == Square.RED) { // It's the user's turn.
+				System.out.println("Your turn.");
+				System.out.println("To enter a move, specify the square of the piece to move, and then the square to move to (enter \"help\" for usage).");
+
+				// Keep trying to parse for user input until a valid move is made.
+				while (true) {
+					if (getMoveAsInput(coordinates, reader, false) == -1) {
+						return;
+					}
+					if (coordinates == null) {
+						return;
+					}
+					if (!game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3])) {
+						System.out.println("Illegal move. Please enter a valid move.");
+					} else {
+						break;
+					}
+				}
+
+				// If the move is a capture, check capture sequences.
+				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
+					while (game.canCaptureForward(coordinates[2], coordinates[3], game.getCurrentTurn()) || 
+						   game.canCaptureBackward(coordinates[2], coordinates[3], game.getCurrentTurn())) {
+
+						i++;
+						System.out.println("Board:");
+						game.printBoard();
+
+						// Ask if user wants to initiaze a capture sequence.
+						while (true) {
+							System.out.print("Double jump? (yes/no) ");
+							line = reader.nextLine();
+							if (line.toLowerCase().equals("help")) {
+								printHelpString();
+								continue;
+							} else if (line.toLowerCase().equals("exit")) {
+								return;
+							}
+							if (!line.toLowerCase().equals("yes") && !line.toLowerCase().equals("no")) {
+								System.out.println("Invalid format. Please try again. Enter \"help\" for usage.");
+							} else {
+								break;
+							}
+						}
+
+						if (line.equals("yes")) { // If yes, repeat the process until the capture sequence is over.
+							System.out.print("Enter next move (must be capture): ");
+
+							// Have the user make the next move.
+							while (true) {
+								// Get user input, forcing it to be a capture.
+								do {
+									if (getMoveAsInput(coordinates, reader, true) == -1) {
+										return;
+									}
+									if (coordinates == null) {
+										return;
+									}
+								} while (Math.abs(coordinates[2] - coordinates[0]) != 2 || Math.abs(coordinates[3] - coordinates[1]) != 2);
+							
+								// Check if the move is valid.
+								if (!game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3])) {
+									System.out.print("Illegal move. Please enter a valid move: ");
+									line = reader.nextLine();
+									while (line.toLowerCase().equals("help")) {
+										printHelpString();
+										System.out.print("Move: ");
+										line = reader.nextLine();
+									}
+									if (line.toLowerCase().equals("exit")) {
+										return;
+									}
+								} else {
+									break;
+								}
+							}
+						} else {
+							break;
+						}
+					}
+				}
+
+				System.out.println();
+				System.out.println("TURN " + i++);
+				System.out.println();
+			} else { // Player will move.
+				System.out.println();
+				System.out.println("TURN " + i++);
+				System.out.println();
+				coordinates = player.move(game); // Player makes a move.
+
+				// If the move was a capture, check for double jumps.
+				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
+					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
+									   ", " + coordinates[3] + "), captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
+									   ((coordinates[1] + coordinates[3]) / 2) + ").");
+					Random r = new Random();
+					while (game.canCaptureForward(coordinates[2], coordinates[3], game.getCurrentTurn()) || 
+						   game.canCaptureBackward(coordinates[2], coordinates[3], game.getCurrentTurn())) {
+						if (r.nextInt(2) == 0) { // Continue the capture sequence with probability 0.5
+							break;
+						}
+
+						coordinates = player.move(game);
+						System.out.println("Opponent double jumped - captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
+									   	   ((coordinates[1] + coordinates[3]) / 2) + ")" + ". Board:");
+						game.printBoard();
+					}
+				} else {
+					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
+						   			   ", " + coordinates[3] + ").");
+				}
+			}
+			
+			game.toggleTurn();
+		}
+
+		if (outcome == 2) {
+			System.out.println("Game drawn!");
+		} else if (outcome == 1) {
+			System.out.println("You won the game!");
+		} else if (outcome == -1) {
+			System.out.println("You lost. :(");
+		}
+		reader.close();
+	}
+
+	/**
+	 * Begins an interactive game of Checkers that can be played against onself through the console, for testing purposes.
 	 */
 	public static void playThroughConsole() {
 		Checkers game = new Checkers();
@@ -25,6 +176,7 @@ public class TestCheckers {
 		System.out.println();
 		System.out.println("\tTURN " + i);
 		System.out.println();
+
 		while ((outcome = game.isGameOver()) == 0) {
 			System.out.println("Board:");
 			game.printBoard();
@@ -119,9 +271,9 @@ public class TestCheckers {
 		if (outcome == 2) {
 			System.out.println("Game drawn!");
 		} else if (outcome == 1) {
-			System.out.println("You won the game!");
+			System.out.println("Red won the game!");
 		} else if (outcome == -1) {
-			System.out.println("You lost you loser fuck!");
+			System.out.println("Black won the game!");
 		}
 		reader.close();
 	}

@@ -20,6 +20,11 @@ public class Checkers {
 	 * @param n The dimensions of the Tic-Tac-Toe board.
 	 */
 	public Checkers() {
+		if (BOARD_SIZE % 2 != 0) {
+			System.out.println("ERROR - Board size must be even.");
+			System.exit(0);
+		}
+
 		this.currentTurn = Square.RED;
 		this.drawMoveCount = 0;
 		this.redCount = 0;
@@ -30,19 +35,19 @@ public class Checkers {
 			for (int j = 0; j < BOARD_SIZE; j++) {
 				if (i < (BOARD_SIZE - 2) / 2) {
 					if ((i + j) % 2 != 0) {
-						this.board[i][j] = new Square(Square.BLACK);
+						this.board[i][j] = new Square(Square.BLACK, i, j);
 						this.blackCount++;
 					} else {
-						this.board[i][j] = new Square(Square.EMPTY);
+						this.board[i][j] = new Square(Square.EMPTY, i, j);
 					}
 				} else if (i < (BOARD_SIZE + 2) / 2) {
-						this.board[i][j] = new Square(Square.EMPTY);
+						this.board[i][j] = new Square(Square.EMPTY, i, j);
 				} else {
 					if ((i + j) % 2 != 0) {
-						this.board[i][j] = new Square(Square.RED);
+						this.board[i][j] = new Square(Square.RED, i, j);
 						this.redCount++;
 					} else {
-						this.board[i][j] = new Square(Square.EMPTY);
+						this.board[i][j] = new Square(Square.EMPTY, i, j);
 					}
 				}
 			}
@@ -63,7 +68,7 @@ public class Checkers {
 			return false; // Can't move off the board.
 		} else if (i_new == i_initial || j_new == j_initial) {
 			return false; // Must move to different row and column.
-		} else if ((this.currentTurn == Square.RED && !this.board[i_initial][j_initial].isRed()) || (this.currentTurn == Square.BLACK && this.board[i_initial][j_initial].isRed())) { 
+		} else if ((this.currentTurn == Square.RED && !this.board[i_initial][j_initial].isRed()) || (this.currentTurn == Square.BLACK && !this.board[i_initial][j_initial].isBlack())) { 
 			return false; // Can't move empty or enemy piece.
 		} else if (!this.board[i_new][j_new].isEmpty()) {
 			return false; // Can't move onto an occupied square.
@@ -146,7 +151,7 @@ public class Checkers {
 							redHasValidMoves = true;
 						}
 					}
-					if (!blackHasValidMoves && !this.board[i][j].isRed()) {
+					if (!blackHasValidMoves && this.board[i][j].isBlack()) {
 						if (hasValidMoves(i, j, Square.BLACK)) {
 							blackHasValidMoves = true;
 						}
@@ -171,34 +176,13 @@ public class Checkers {
 	}
 
 	/**
-	 * Switches the turn.
-	 */
-	public void toggleTurn() {
-		if (this.currentTurn == Square.RED) {
-			this.currentTurn = Square.BLACK;
-		} else {
-			this.currentTurn = Square.RED;
-		}
-	}
-
-	/**
-	 * Gets the current turn.
-	 * @return Returns which player's current turn it is.
-	 */
-	public int getCurrentTurn() {
-		return this.currentTurn;
-	}
-
-	// Helper methods below this line.
-
-	/**
  	 * Returns whether or not the piece at [i, j] can make any legal moves.
  	 * @param i The vertical coordinate of the square.
  	 * @param j The horizontal coordinate of the square.
  	 * @param turn Whose turn to assume it is when searching for valid moves.
  	 * @return Whether or not the piece on square [i, j] can make any valid moves.
  	 */
-	private boolean hasValidMoves(int i, int j, int turn) {
+	public boolean hasValidMoves(int i, int j, int turn) {
 		if (this.board[i][j].isRed() != (turn == Square.RED)) {
 			return false; // The player whose turn it is must match the piece on the given square.
 		}
@@ -288,7 +272,52 @@ public class Checkers {
 		return false;
 	}
 
+	/**
+	 * Switches the turn.
+	 */
+	public void toggleTurn() {
+		if (this.currentTurn == Square.RED) {
+			this.currentTurn = Square.BLACK;
+		} else {
+			this.currentTurn = Square.RED;
+		}
+	}
 
+	/**
+	 * Gets the current turn.
+	 * @return Returns which player's current turn it is.
+	 */
+	public int getCurrentTurn() {
+		return this.currentTurn;
+	}
+
+	/**
+	 * Returns the piece at the given square.
+	 * @param i The vertical coordinate.
+	 * @param j The horizontal coordinate.
+	 * @return Returns the Square at [i, j].
+	 */
+	public Square getPiece(int i, int j) {
+		return this.board[i][j];
+	}
+
+	/**
+	 * Returns the number of red pieces on the board.
+	 * @return Returns the redCount variable.
+	 */
+	public int getRedCount() {
+		return this.redCount;
+	}
+
+	/**
+	 * Returns the number of black pieces on the board.
+	 * @return Returns the blackCount variable.
+	 */
+	public int getBlackCount() {
+		return this.blackCount;
+	}
+
+	// Helper methods below this line.
 
 	/**
 	 * Returns whether or not the piece at [i, j] can make a capture forward.
@@ -300,12 +329,12 @@ public class Checkers {
 		if (turn == Square.RED) {
 			if (i - 2 >= 0) {
 				if (j - 2 >= 0) {
-					if (this.board[i - 2][j - 2].isEmpty() && !this.board[i - 1][j - 1].isRed()) {
+					if (this.board[i - 2][j - 2].isEmpty() && !this.board[i - 1][j - 1].isRed() && !this.board[i - 1][j - 1].isEmpty()) {
 						return true; // Can capture diagonally up and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i - 2][j + 2].isEmpty() && !this.board[i - 1][j + 1].isRed()) {
+					if (this.board[i - 2][j + 2].isEmpty() && !this.board[i - 1][j + 1].isRed() && !this.board[i - 1][j + 1].isEmpty()) {
 						return true; // Can capture digaonally up and right.
 					}
 				}
@@ -313,12 +342,12 @@ public class Checkers {
 		} else {
 			if (i + 2 < BOARD_SIZE) {
 				if (j - 2 >= 0) {
-					if (this.board[i + 2][j - 2].isEmpty() && this.board[i + 1][j - 1].isRed()) {
+					if (this.board[i + 2][j - 2].isEmpty() && !this.board[i + 1][j - 1].isBlack() && !this.board[i + 1][j - 1].isEmpty()) {
 						return true; // Can capture diagonally up and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i + 2][j + 2].isEmpty() && this.board[i + 1][j + 1].isRed()) {
+					if (this.board[i + 2][j + 2].isEmpty() && !this.board[i + 1][j + 1].isBlack() && !this.board[i + 1][j + 1].isEmpty()) {
 						return true; // Can capture digaonally up and right.
 					}
 				}
@@ -355,12 +384,12 @@ public class Checkers {
 		} else {
 			if (i - 2 < BOARD_SIZE) {
 				if (j - 2 >= 0) {
-					if (this.board[i - 2][j - 2].isEmpty() && this.board[i - 1][j - 1].isRed()) {
+					if (this.board[i - 2][j - 2].isEmpty() && !this.board[i - 1][j - 1].isBlack() && !this.board[i - 1][j - 1].isEmpty()) {
 						return true; // Can capture diagonally down and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i - 2][j + 2].isEmpty() && this.board[i - 1][j + 1].isRed()) {
+					if (this.board[i - 2][j + 2].isEmpty() && !this.board[i - 1][j + 1].isBlack() && !this.board[i - 1][j + 1].isEmpty()) {
 						return true; // Can capture diagonally down and right.
 					}
 				}
@@ -374,13 +403,25 @@ public class Checkers {
 	 * Prints the board to console, in human readable format.
 	 */
 	public void printBoard() {
-		System.out.print("  ");
+		if (BOARD_SIZE < 10) {
+			System.out.print("  ");
+		} else {
+			System.out.print("   ");
+		}
 		for (int i = 0; i < BOARD_SIZE; i++) {
 			System.out.print(i + " ");
 		}
 		System.out.println();
 		for (int i = 0; i < BOARD_SIZE; i++) {
-			System.out.print(i + " ");
+			if (BOARD_SIZE < 10) {
+				System.out.print(i + " ");
+			} else {
+				if (i < 10) {
+					System.out.print(i + "  ");
+				} else if (i < 100) {
+					System.out.print(i + " ");				
+				}
+			}
 			for (int j = 0; j < BOARD_SIZE; j++) {
 				if (this.board[i][j].isEmpty()) {
 					System.out.print("  ");
@@ -398,7 +439,10 @@ public class Checkers {
 					}
 				}
 			}
-			System.out.println();
+			System.out.println("|");
+		}
+		for (int i = 0; i <= BOARD_SIZE; i++) {
+			System.out.print("--");
 		}
 		System.out.println();
 	}
