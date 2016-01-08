@@ -64,7 +64,7 @@ public class Checkers {
 	 */
 	public boolean move(int i_initial, int j_initial, int i_new, int j_new) {
 		if (i_initial < 0 || i_initial >= BOARD_SIZE || j_initial < 0 || j_initial >= BOARD_SIZE || i_new < 0 || i_new >= BOARD_SIZE || 
-			j_initial < 0 || j_new >= BOARD_SIZE) {
+			j_new < 0 || j_new >= BOARD_SIZE) {
 			return false; // Can't move off the board.
 		} else if (i_new == i_initial || j_new == j_initial) {
 			return false; // Must move to different row and column.

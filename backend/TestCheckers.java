@@ -135,7 +135,7 @@ public class TestCheckers {
 							break;
 						}
 
-						coordinates = player.move(game);
+						coordinates = player.doubleJump(game, game.getPiece(coordinates[0], coordinates[1]));
 						System.out.println("Opponent double jumped - captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
 									   	   ((coordinates[1] + coordinates[3]) / 2) + ")" + ". Board:");
 						game.printBoard();

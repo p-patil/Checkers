@@ -45,7 +45,7 @@ public class RandomPlayer extends Player {
 		Square piece;
 		Random r = new Random();
 		do {
-			piece = pieces[r.nextInt(pieces.length)];			
+			piece = pieces[r.nextInt(pieces.length)];
 		} while (!game.hasValidMoves(piece.getVerticalCoord(), piece.getHorizontalCoord(), game.getCurrentTurn()));
 
 		// Make a random, legal move.
@@ -58,6 +58,30 @@ public class RandomPlayer extends Player {
 				offset_v = (r.nextInt(2) == 0) ? 1 : -1;
 				offset_h = (r.nextInt(2) == 0) ? 1 : -1;
 			}
+		} while (!game.move(piece.getVerticalCoord(), piece.getHorizontalCoord(), piece.getVerticalCoord() + offset_v, 
+						    piece.getHorizontalCoord() + offset_h));
+
+		int[] coordinates = new int[4];
+		coordinates[0] = piece.getVerticalCoord();
+		coordinates[1] = piece.getHorizontalCoord();
+		coordinates[2] = piece.getVerticalCoord() + offset_v;
+		coordinates[3] = piece.getHorizontalCoord() + offset_h;
+		return coordinates;
+	}
+
+	/**
+	 * Performs a double jump on the given square. Assumes that there exists at least one possible capture move from the given square.
+	 * @param game The checkers game to play on.
+	 * @param piece The square to double jump from.
+	 * @return The coordinates array, same as the above move method.
+	 */
+	public int[] doubleJump(Checkers game, Square piece) {
+		// Make a random, legal capture.
+		Random r = new Random();
+		int offset_v, offset_h;
+		do {
+			offset_v = (r.nextInt(2) == 0) ? 2 : -2;
+			offset_h = (r.nextInt(2) == 0) ? 2 : -2;
 		} while (!game.move(piece.getVerticalCoord(), piece.getHorizontalCoord(), piece.getVerticalCoord() + offset_v, 
 						    piece.getHorizontalCoord() + offset_h));
 
