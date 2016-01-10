@@ -3,15 +3,14 @@ import java.util.Random;
 /**
  * Checkers player that makes random checkers moves. Useful for testing purposes.
  */
-public class RandomPlayer extends Player {
+public class RandomPlayer {
 	/**
 	 * Basic constructor.
 	 */
-	public void Player() {
+	public void RandomPlayer() {
 
 	}
 
-	@Override
 	/**
 	 * Makes a random move on a given Checkers game for a given side.
 	 * @param game The game to move on.

@@ -93,15 +93,49 @@ public class Square {
 		return this.state == Square.RED_KING || this.state == Square.BLACK_KING;
 	}
 
+	/**
+	 * Sets this square to be empty.
+	 */
 	public void setEmpty() {
 		this.state = Square.EMPTY;
 	}
 
+	/**
+	 * Makes the piece on this square a king.
+	 */
 	public void makeKing() {
 		if (this.state == Square.RED) {
 			this.state = Square.RED_KING;
 		} else if (this.state == Square.BLACK) {
 			this.state = Square.BLACK_KING;
 		}
+	}
+
+	@Override
+	public int hashCode() {
+		return this.state + BLACK_KING;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		Square s = (Square) obj;
+		int state;
+		if (s.isRed()) {
+			if (s.isKing()) {
+				state = Square.RED_KING;
+			} else {
+				state = Square.RED;
+			}
+		} else if (s.isBlack()) {
+			if (s.isKing()) {
+				state = Square.BLACK_KING;
+			} {
+				state = Square.BLACK;
+			}
+		} else {
+			state = Square.EMPTY;
+		}
+
+		return (this.state == state) && (this.i == s.getVerticalCoord()) && (this.j == s.getHorizontalCoord());
 	}
 }
