@@ -101,6 +101,34 @@ public class Square {
 	}
 
 	/**
+	 * Sets this square to be red.
+	 */
+	public void setRed() {
+		this.state = Square.RED;
+	}
+
+	/**
+	 * Sets this square to be a red king.
+	 */
+	public void setRedKing() {
+		this.state = Square.RED_KING;
+	}
+
+	/**
+	 * Sets this square to be black.
+	 */
+	public void setBlack() {
+		this.state = Square.BLACK;
+	}
+
+	/**
+	 * Sets this square to be a black king.
+	 */
+	public void setBlackKing() {
+		this.state = Square.BLACK_KING;
+	}
+
+	/**
 	 * Makes the piece on this square a king.
 	 */
 	public void makeKing() {

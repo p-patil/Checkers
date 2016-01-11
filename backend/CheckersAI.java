@@ -5,8 +5,7 @@ import java.util.HashMap;
  * Program that plays checkers. Implements a minimax algorithm and uses a generated tablebase when feasible.
  */
 public class CheckersAI {
-	private static final int MAX_DEPTH = 5; // The maximum depth in the game tree that minimax should explore.
-	private static final int ENDGAME_LIMIT = 5; // The threshold number of pieces before an endgame database is used.
+	public static final int MAX_DEPTH = 4; // The maximum depth in the game tree that minimax should explore.
 
 	private EndgameDatabase database;
 
@@ -25,17 +24,16 @@ public class CheckersAI {
 	}
 
 	public int[] move(Checkers game) {
-		Position curr = new Position(game, game.getCurrentTurn(), null);
-		if (game.getRedCount() + game.getBlackCount() <= ENDGAME_LIMIT && this.database != null) { // If possible, use an endgame database.
+		Position curr = new Position(game);
+
+		// If possible, use an endgame database.	
+		if (game.getRedCount() + game.getBlackCount() <= EndgameDatabase.ENDGAME_LIMIT && this.database != null) {
 			// Endgame database logic goes here
 			return null;
 		} else { // Too many pieces to feasibly generate tablebase - use minimax.
-			return minimax(curr, MAX_DEPTH, game.getCurrentTurn(), new HashMap<Position, Position>()).parentMove;
+			Position best = minimax(curr, MAX_DEPTH, new HashMap<Position, Position>());
+			return curr.successors.get(best);
 		}
-	}
-
-	public int[] doubleJump(Checkers game, Square piece) {
-		return null;
 	}
 
 	/**
@@ -45,22 +43,22 @@ public class CheckersAI {
 	 * @param turn Whose side to evaluate the position on.
 	 * @return Returns the optimal position, based on the evaluation function of a Position object and the maximum searchable depth.
 	 */
-	public Position minimax(Position position, int depth, int turn, HashMap<Position, Position> memoize) {
+	public Position minimax(Position position, int depth, HashMap<Position, Position> memoize) {
 		if (depth > MAX_DEPTH || position.isLeaf()) {
 			return position;
 		}
 
 		Position best = position, temp;
 		double bestVal, tempVal;
-		position.generateSuccessors(turn);
+		position.generateSuccessors();
 		bestVal = Double.NEGATIVE_INFINITY;
-		for (Position p : position.successors) {
+		for (Position p : position.successors.keySet()) {
 			if (!memoize.containsKey(p)) {
-				memoize.put(p, minimax(p, depth + 1, ((turn == Square.RED) ? Square.BLACK : Square.RED), memoize));
+				memoize.put(p, minimax(p, depth + 1, memoize));
 			}
 			temp = memoize.get(p);
-			tempVal = temp.evaluationFunction(turn);
-			if ((turn == Square.RED && tempVal > bestVal) || (turn == Square.BLACK && tempVal < bestVal)) {
+			tempVal = temp.evaluationFunction(position.turn);
+			if ((position.turn == Square.RED && tempVal > bestVal) || (position.turn == Square.BLACK && tempVal < bestVal)) {
 				bestVal = tempVal;
 				best = temp;
 			}

@@ -1,12 +1,13 @@
 import java.lang.Math;
 import java.util.Scanner;
 import java.util.Random;
+import java.util.Arrays;
 
 /**
  * Main class for interfacing with the actual TicTacToe game.
  */
 public class Checkers {
-	public static final int BOARD_SIZE = 8; // Board dimensions, set to 8, the standard for English draughts, by default. Must be even.
+	public static final int BOARD_SIZE = 4; // Board dimensions, set to 8, the standard for English draughts, by default. Must be even.
 	public static final int drawMoveLimit = 40; // The maximum number of consecutive moves, on one side, without a capture before the game draws. 
 
 	public Square[][] board; // The checkers board. By convention, the upper left corner, on black's side, is [0, 0], with the first dimension 
@@ -76,9 +77,10 @@ public class Checkers {
 	/**
 	 * Constructor that builds a checkers game from a given board.
 	 * @param board The board configuration to use.
+	 * @param turn Whose turn it is.
 	 */
-	public Checkers(Square[][] board) {
-		this.currentTurn = Square.RED;
+	public Checkers(Square[][] board, int turn) {
+		this.currentTurn = turn;
 		this.redCount = 0;
 		this.blackCount = 0;
 		this.board = new Square[board.length][];
@@ -641,6 +643,37 @@ public class Checkers {
 	 */
 	public int getDrawMoveCount() {
 		return this.drawMoveCount;
+	}
+
+	@Override
+	public int hashCode() {
+		if (currentTurn == Square.RED) {
+			return Arrays.deepHashCode(this.board) * 10 + 1;
+		} else {
+			return Arrays.deepHashCode(this.board);
+		}
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		Checkers other = (Checkers) obj;
+		if (this.board.length != other.board.length) {
+			return false;
+		}
+
+		for (int i = 0; i < this.board.length; i++) {
+			if (this.board[i].length != other.board[i].length) {
+				return false;
+			}
+
+			for (int j = 0; j < this.board[i].length; j++) {
+				if (!this.board[i][j].equals(other.board[i][j])) {
+					return false;
+				}
+			}
+		}
+
+		return (this.currentTurn == other.getCurrentTurn());
 	}
 
 	// Helper methods below this line.
