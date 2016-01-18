@@ -1,15 +1,45 @@
 import java.util.HashSet;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.io.Serializable;
 
 /**
  * Class representing a node in the game tree used in generating endgame tablebases and running the minimax algorithm.
  */
-public class Position {
+public class Position implements Serializable {
 	private static final int UNKNOWN_VALUE = -2; // Placeholder value to represent an unknown value for this position.
 	public static final int DRAW = 0; // Placeholder value to represent a draw.
 	public static final int WIN = 1; // Placeholder value to represent a red win.
 	public static final int LOSS = -1; // Placeholder value to represent a black win.
+	private static final int[][][] zobristHashKeys; // Lookup array for Zobrist hashing - contains a random 32-bit number for each 
+													// position-piece combination. Initialized in static block.
+
+	/**
+	 * Initialize Zobrist Hash array to uniformly random integers for every piece-position combination. Makes use of class MersenneTwisterFast.java
+	 * written by Sean Luke. Copyright:
+	 * Copyright (c) 2003 by Sean Luke. <br>
+ 	 * Portions copyright (c) 1993 by Michael Lecuyer. <br>
+ 	 * All rights reserved. <br>
+ 	 */
+	static {
+		zobristHashKeys = new int[Checkers.BOARD_SIZE][Checkers.BOARD_SIZE][5];
+		MersenneTwisterFast m = new MersenneTwisterFast();
+		for (int i = 0; i < zobristHashKeys.length; i++) {
+			for (int j = 0; j < zobristHashKeys[i].length; j++) {
+				if ((i + j) % 2 == 1) {
+					zobristHashKeys[i][j][Square.RED - Square.BLACK_KING] = m.nextInt();
+					zobristHashKeys[i][j][Square.BLACK - Square.BLACK_KING] = m.nextInt();
+					zobristHashKeys[i][j][Square.RED_KING - Square.BLACK_KING] = m.nextInt();
+					zobristHashKeys[i][j][Square.BLACK_KING - Square.BLACK_KING] = m.nextInt();
+				} else {
+					zobristHashKeys[i][j][Square.RED - Square.BLACK_KING] = 0;
+					zobristHashKeys[i][j][Square.BLACK - Square.BLACK_KING] = 0;
+					zobristHashKeys[i][j][Square.RED_KING - Square.BLACK_KING] = 0;
+					zobristHashKeys[i][j][Square.BLACK_KING - Square.BLACK_KING] = 0;
+				}
+			}
+		}
+	}
 
 	public HashMap<Position, int[]> successors; // The successor positions to this position, defined as all positions one forward move away from this position.
 	// public int[] parentMove; // Stores the move that bridges the parent of this Position to this position. Its length may be greater than 4 if
@@ -17,6 +47,8 @@ public class Position {
 	public HashMap<Position, Integer> successorScores;
 	public final Square[][] board; // The board configuration represented by this position object.
 	public int turn; // Whose turn it is in this position.
+	private int redCount;
+	private int blackCount;
 
 	/**
 	 * Basic constructor.
@@ -25,6 +57,17 @@ public class Position {
 	 */
 	public Position(Checkers game) {
 		this.board = deepSquareCopy(game.board);
+		this.redCount = 0;
+		this.blackCount = 0;
+		for (int i = 0; i < this.board.length; i++) {
+			for (int j = 0; j < this.board[i].length; j++) {
+				if (this.board[i][j].isRed()) {
+					this.redCount++;
+				} else if (this.board[i][j].isBlack()) {
+					this.blackCount++;
+				}
+			}
+		}
 		this.turn = game.getCurrentTurn();
 		if (game.isGameOver() != 0) {
 			this.successors = null;
@@ -42,8 +85,19 @@ public class Position {
 	 */
 	public Position(Square[][] board, int turn) {
 		this.board = deepSquareCopy(board);
+		this.redCount = 0;
+		this.blackCount = 0;
+		for (int i = 0; i < this.board.length; i++) {
+			for (int j = 0; j < this.board[i].length; j++) {
+				if (this.board[i][j].isRed()) {
+					this.redCount++;
+				} else if (this.board[i][j].isBlack()) {
+					this.blackCount++;
+				}
+			}
+		}
 		this.turn = turn;
-		if ((new Checkers(board, turn)).isGameOver() != 0) {
+		if ((new Checkers(board, turn)).isGameOver() != 0) { // Game is over, so this position is a leaf.
 			this.successors = null;
 			this.successorScores = null;
 		} else {
@@ -56,7 +110,7 @@ public class Position {
 	 * Initializes this Position object's successors.
 	 */
 	public void generateSuccessors() {
-		if (!this.successors.isEmpty() || this.successors == null) {
+		if (this.successors == null || !this.successors.isEmpty()) {
 			return;
 		}
 
@@ -70,6 +124,8 @@ public class Position {
 				}
 			}
 		}
+
+		this.successorScores = new HashMap<>();
 	}
 
 	/**
@@ -108,46 +164,113 @@ public class Position {
 	 * @return Returns the number of pieces on the board.
 	 */
 	public int pieceCount() {
-		int count = 0;
-		for (int i = 1; i < this.board.length; i += 2) {
-			for (int j = 1; j < this.board[i].length; j += 2) {
-				if (!this.board[i][j].isEmpty()) {
-					count++;
-				}
-			}
-		}
+		return this.redCount + this.blackCount;	
+	}
 
-		return count;
+	/**
+	 * @return Returns the number of black pieces on the board.
+	 */
+	public int redPieceCount() {
+		return this.redCount;
+	}
+
+	/**
+	 * @return Returns the number of black pieces on the board.
+	 */
+	public int blackPieceCount() {
+		return this.blackCount;
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-		if (this.board.length != ((Position) obj).board.length) {
-			return false;
-		}
+		Position p = (Position) obj;
+
+		// if (this.turn != p.turn || this.board.length != p.board.length) {
+		// 	return false;
+		// }
+
+		// for (int i = 0; i < this.board.length; i++) {
+		// 	if (this.board[i].length != p.board[i].length) {
+		// 		return false;
+		// 	}
+
+		// 	for (int j = 0; j < this.board[i].length; j++) {
+		// 		if (!this.board[i][j].equals(p.board[i][j])) {
+		// 			return false;
+		// 		}
+		// 	}
+		// }
+
+		// return true;
+
+		return (this.turn == p.turn) && (this.toString().equals(p.toString()));
+	}
+
+	@Override
+	/**
+	 * Implmementation of Zobrist hashing, slightly modified to account for the turn attribute.
+	 */
+	public int hashCode() {
+		int hash = 0;
 
 		for (int i = 0; i < this.board.length; i++) {
-			if (this.board[i].length != ((Position) obj).board[i].length) {
-				return false;
-			}
-
 			for (int j = 0; j < this.board[i].length; j++) {
-				if (!this.board[i][j].equals(((Position) obj).board[i][j])) {
-					return false;
+				if (!this.board[i][j].isEmpty()) {
+					hash ^= zobristHashKeys[i][j][this.board[i][j].getState() - Square.BLACK_KING];
 				}
 			}
 		}
 
-		return true;
+		return hash * (this.turn == Square.RED ? 1 : -1);
 	}
 
 	@Override
-	public int hashCode() {
-		if (turn == Square.RED) {
-			return Arrays.deepHashCode(this.board) * 10 + 1;
+	public String toString() {
+		String s = "";
+
+		if (this.board.length < 10) {
+			s += "  ";
 		} else {
-			return Arrays.deepHashCode(this.board);
+			s += "   ";
 		}
+		for (int i = 0; i < this.board.length; i++) {
+			s += i + " ";
+		}
+		s += "\n";
+		for (int i = 0; i < this.board.length; i++) {
+			if (this.board.length < 10) {
+				s += i + " ";
+			} else {
+				if (i < 10) {
+					s += i + "  ";
+				} else if (i < 100) {
+					s += i + " ";
+				}
+			}
+			for (int j = 0; j < this.board.length; j++) {
+				if (this.board[i][j].isEmpty()) {
+					s += "  ";
+				} else if (this.board[i][j].isRed()) {
+					if (this.board[i][j].isKing()) {
+						s += "R ";
+					} else {
+						s += "r ";
+					}
+				} else {
+					if (this.board[i][j].isKing()) {
+						s += "B ";
+					} else {
+						s += "b ";
+					}
+				}
+			}
+			s += "|\n";
+		}
+		for (int i = 0; i <= this.board.length; i++) {
+			s += "--";
+		}
+		
+		return s;
 	}
 
 	// Helper methods below this line.
@@ -354,7 +477,7 @@ public class Position {
 						moves.add(move);
 					}
 				}
-				if (i - 2 < Checkers.BOARD_SIZE) {
+				if (i - 2 >= 0) {
 					if (j - 2 >= 0 && board[i - 2][j - 2].isEmpty() && board[i - 1][j - 1].isBlack()) {
 						Square[][] tempBoard = deepSquareCopy(board);
 						tempBoard[i - 2][j - 2] = new Square(tempBoard[i][j]);
@@ -402,8 +525,7 @@ public class Position {
 	 */
 	private HashSet<Object[]> generateAllMovesDoubleJump(Square[][] board, int i, int j, int[] currParentMove, int turn) {
 		HashSet<Object[]> moves = new HashSet<>();
-		Checkers tempGame = new Checkers(board, turn);
-		if (!tempGame.canCaptureForward(i, j, turn) && !tempGame.canCaptureBackward(i, j, turn)) {
+		if (Checkers.numForwardCaptures(board, i, j, turn) != 0 && Checkers.numBackwardCaptures(board, i, j, turn) != 0) {
 			return moves;
 		}
 		if (board[i][j].isEmpty()) {

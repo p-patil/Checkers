@@ -1,6 +1,7 @@
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Arrays;
+import java.util.Set;
 import java.io.Serializable;
 import java.io.ObjectOutputStream;
 import java.io.FileOutputStream;
@@ -12,9 +13,10 @@ import java.io.IOException;
  * Class for building an endgame database.
  */
 public class EndgameDatabase implements Serializable {
-	public static final int ENDGAME_LIMIT = 5; // The threshold number of pieces before an endgame database is used.
+	public static final int ENDGAME_LIMIT = 4; // The threshold number of pieces before an endgame database is used.
 
-	HashMap<Checkers, Position> database;
+	public HashMap<Checkers, Position> database; // Maps checkers games to the corresponding position object, whose successors and successorScores
+												 // attributes will be fully set upon execution of the constructor.
 
 	/**
 	 * Basic constructor. Builds all possible positions with at most n pieces, and creates the game graph that results from them by initializing
@@ -24,90 +26,8 @@ public class EndgameDatabase implements Serializable {
 	 */
 	public EndgameDatabase(int turn) {
 		this.database = new HashMap<>();
-
-		// First, find all positions which are terminal.
-		if (turn == Square.RED) {		
-			HashMap<Position, Integer> curr = new HashMap<>();
-			int outcome, numPositions = 0;
-			for (Position p : generateAllPositions(ENDGAME_LIMIT)) { // Set all terminal games to their final value.
-				outcome = (new Checkers(p.board, p.turn)).isGameOver();
-				if (outcome != 0) { // Position is terminal, so set its value.
-					if (turn == Square.RED && p.turn == Square.BLACK) {
-						if (outcome == 1) {
-							curr.put(p, Position.WIN);
-						} else if (outcome == -1) {
-							curr.put(p, Position.LOSS);
-						} else if (outcome == 2) {
-							curr.put(p, Position.DRAW);
-						}
-					}
-				}
-
-				numPositions++;
-			}
-
-			// In a dynamic programming fashion, build the positions in a ply using those one ply below. Given the positions which are n
-			// moves from a guaranteed win, generate the set of positions (n + 1) moves away by un-moving or un-capturing once.
-			HashMap<Position, Integer> next;
-			while (this.database.size() < numPositions) { // Keep going until we've checked every position.
-				next = new HashMap<>(); // Positions one ply higher.
-				for (Position p : curr.keySet()) {
-					this.database.put(new Checkers(p.board, p.turn), p); // Add to database.
-
-					// To begin generating positions one ply higher, perform an un-move.
-					for (Position next_p : unMove(p)) {
-						next_p.generateSuccessors();
-						next_p.successorScores.put(p, curr.get(p)); // Set the score of p to its value.
-
-						// Essentially, run the minimax algorithm from the ground up - propogate the values upwards from the leaves.
-						if (p.turn == Square.RED) { // next_p.turn is black, so minimize the values.
-							if (next.containsKey(next_p)) {
-								if (curr.get(p) < next.get(next_p)) {
-									next.put(next_p, curr.get(p));
-								}
-							} else {
-								next.put(next_p, curr.get(p));
-							}
-						} else { // next_p.turn is red, so maximize values.
-							if (next.containsKey(next_p)) {
-								if (curr.get(p) > next.get(next_p)) {
-									next.put(next_p, curr.get(p));
-								}
-							} else {
-								next.put(next_p, curr.get(p));
-							}
-						}
-					}
-
-					// Only perform an un-capture if it doesn't exceed the ENDGAME_LIMIT.
-					if (p.pieceCount() < ENDGAME_LIMIT - 1) {
-						for (Position next_p : unCapture(p)) {
-							next_p.generateSuccessors();
-							next_p.successorScores.put(p, curr.get(p)); 
-
-							if (p.turn == Square.RED) {
-								if (next.containsKey(next_p)) {
-									if (curr.get(p) < next.get(next_p)) {
-										next.put(next_p, curr.get(p));
-									}
-								} else {
-									next.put(next_p, curr.get(p));
-								}
-							} else { // next_p.turn is red, so maximize values.
-								if (next.containsKey(next_p)) {
-									if (curr.get(p) > next.get(next_p)) {
-										next.put(next_p, curr.get(p));
-									}
-								} else {
-									next.put(next_p, curr.get(p));
-								}
-							}
-						}
-					}
-				}
-
-				curr = new HashMap<>(next);
-			}
+		for (Position p : generateWinningPositions(generateAllPositions(Checkers.BOARD_SIZE), turn)) {
+			this.database.put(new Checkers(p.board, p.turn), p);
 		}
 	}
 
@@ -145,6 +65,7 @@ public class EndgameDatabase implements Serializable {
 			fileIn.close();
 			return database;
 		} catch (IOException e) {
+			e.printStackTrace();
 			return null;
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
@@ -155,20 +76,140 @@ public class EndgameDatabase implements Serializable {
 	// Helper methods below this line.
 
 	/**
+	 * Given a set of seed positions and a player's side to be on, returns the set of all positions that can be guaranteed to win for the 
+	 * given side, assuming perfect play by that side.
+	 * @param seedPositions The initial positions to use.
+	 * @param player Which side to be on.
+	 * @return Returns a set of all winnable (assuming perfect play by both sides) positions.
+	 */
+	public static HashSet<Position> generateWinningPositions(Set<Position> seedPositions, int player) {
+		HashSet<Position> curr = new HashSet<>(), next = new HashSet<>(), allPositions = new HashSet<>();
+		// Initialize the base case with all positions in which red has won.
+		for (Position p : seedPositions) {
+			if ((new Checkers(p.board, p.turn)).isGameOver() == 1) { // Position is terminal with red win.
+				curr.add(p);
+				allPositions.add(p);
+			}
+		}
+
+		int currentTurn, prevTurn, totalValidMoves, maxPieces = (Checkers.BOARD_SIZE / 2 - 1) * (Checkers.BOARD_SIZE / 2), lastSize = -1;
+		currentTurn = prevTurn = (player == Square.RED) ? Square.BLACK : Square.RED;
+		while (allPositions.size() != lastSize) { // Keep iterating until all positions have been seen (ie no new positions are added)
+			lastSize = allPositions.size();
+			next.clear();
+
+			// If curr contains positions in which it's black to move and no matter what move black makes, red can force a win in at most k moves.
+			if (currentTurn == prevTurn) {
+				for (Position p : curr) {
+
+					// Add all positions that can reach a position in curr within a move.
+					for (Position q : unMove(p)) {
+						if (!allPositions.contains(q)) {
+							if (!q.isLeaf()) {
+								q.generateSuccessors();
+								q.successorScores.put(p, 1);
+							}
+
+							next.add(q);
+							allPositions.add(q);
+						}
+					}
+
+					// Add all positions that can reach a position in curr within a capture, if adding another piece doesn't exceed the limit.
+					if ((currentTurn == Square.BLACK && p.redPieceCount() + 1 <= maxPieces) || (currentTurn == Square.RED && p.blackPieceCount() + 1 <= maxPieces)) {
+						if (p.pieceCount() + 1 <= ENDGAME_LIMIT) {
+							for (Position q : unCapture(p)) {
+								if (!allPositions.contains(q)) {
+									if (!q.isLeaf()) {
+										q.generateSuccessors();
+										q.successorScores.put(p, 1);
+									}
+
+									next.add(q);
+									allPositions.add(q);
+								}
+							}
+					}
+					}
+				}
+			} else { // curr contains positions in which it's red to move and there exists a move red can make that will put red in a position
+					 // to be able to force a win in at most k - 1 moves (so red can force a win in k moves).
+				// Add all positions in which it's black to move and no matter what move black makes, the result will always be some position
+				// in curr (so that no matter what black does, red can force a win in at most k moves). Compute such positions by comparing the
+				// number of times some position in curr references (in unMove or unCapture) a given position to the number of legal moves that
+				// can be made in that position - if they match, then every legal move in that position leads to some position in curr.
+				HashMap<Position, Integer> moveCounts = new HashMap<>(); // Stores the reference counts.
+				for (Position p : curr) {
+					for (Position q : unMove(p)) {
+						if (!q.isLeaf()) {
+							q.generateSuccessors();
+							q.successorScores.put(p, 1);
+						}
+						if (!moveCounts.containsKey(q)) {
+							moveCounts.put(q, 0);
+						}
+
+						moveCounts.put(q, moveCounts.get(q) + 1);
+					}
+
+					// Only check uncaptures if the piece limit is not exceeded.
+					if ((currentTurn == Square.BLACK && p.redPieceCount() + 1 <= maxPieces) || (currentTurn == Square.RED && p.blackPieceCount() + 1 <= maxPieces)) {	
+						if (p.pieceCount() + 1 <= ENDGAME_LIMIT) {
+							for (Position q : unCapture(p)) {
+								q.generateSuccessors();
+								q.successorScores.put(p, 1);
+
+								if (!moveCounts.containsKey(q)) {
+									moveCounts.put(q, 0);
+								}
+
+								moveCounts.put(q, moveCounts.get(q) + 1);
+							}
+						}
+					}
+				}
+
+				// Compare each computed position's reference count to the number of legal moves it has.
+				for (Position p : moveCounts.keySet()) {
+					totalValidMoves = 0;
+					for (int i = 0; i < p.board.length; i++) {
+						for (int j = 0; j < p.board[i].length; j++) {
+							if (!p.board[i][j].isEmpty()) {
+								totalValidMoves += Checkers.numValidMoves(p.board, i, j, p.turn);
+							}
+						}
+					}
+
+					// If the move counts match, add the position.
+					if (moveCounts.get(p) == totalValidMoves) {
+						next.add(p);
+						allPositions.add(p);
+					}
+				}
+			}
+
+			currentTurn = (currentTurn == Square.RED) ? Square.BLACK : Square.RED;
+			curr = new HashSet<>(next);
+		}
+
+		return allPositions;
+	}
+
+	/**
 	 * Given a position and turn, computes all positions which reach the given one in exactly one move (excluding captures) made by the side 
 	 * whose turn it is.
 	 * @param p The position.
 	 * @param turn Whose turn it is.
 	 * @return Returns the set of all positions one move (not capture) away from p.
 	 */
-	private static HashSet<Position> unMove(Position p) {
+	public static HashSet<Position> unMove(Position p) {
 		HashSet<Position> unmovePositions = new HashSet<>();
 
 		Square[][] temp;
 		int prevTurn = (p.turn == Square.RED) ? Square.BLACK : Square.RED;
-		for (int i = 1; i < p.board.length; i += 2) { // Only check dark squares.
-			for (int j = 1; j < p.board[i].length; j += 2) {
-				if (p.turn == Square.RED && p.board[i][j].isRed()) {
+		for (int i = 0; i < p.board.length; i++) {
+			for (int j = 0; j < p.board[i].length; j++) {
+				if (prevTurn == Square.RED && p.board[i][j].isRed()) {
 					if (i + 1 < p.board[i].length) {
 						if (j - 1 >= 0 && p.board[i + 1][j - 1].isEmpty()) {
 							temp = Position.deepSquareCopy(p.board);
@@ -200,7 +241,7 @@ public class EndgameDatabase implements Serializable {
 							}
 						}
 					}
-				} else if (p.turn == Square.BLACK && p.board[i][j].isBlack()) {
+				} else if (prevTurn == Square.BLACK && p.board[i][j].isBlack()) {
 					if (i - 1 >= 0) {
 						if (j - 1 >= 0 && p.board[i - 1][j - 1].isEmpty()) {
 							temp = Position.deepSquareCopy(p.board);
@@ -247,13 +288,13 @@ public class EndgameDatabase implements Serializable {
 	 * @param turn Whose turn it is.
 	 * @return Returns the set of all positions one capture sequence away from p.
 	 */
-	private static HashSet<Position> unCapture(Position p) {
+	public static HashSet<Position> unCapture(Position p) {
 		HashSet<Position> uncapturePositions = new HashSet<>();
 		Square[][] temp;
 		int prevTurn = (p.turn == Square.RED) ? Square.BLACK : Square.RED;
-		for (int i = 1; i < p.board.length; i += 2) {
-			for (int j = 1; j < p.board[i].length; j += 2) {
-				if (p.turn == Square.RED && p.board[i][j].isRed()) {
+		for (int i = 0; i < p.board.length; i++) {
+			for (int j = 0; j < p.board[i].length; j++) {
+				if (prevTurn == Square.RED && p.board[i][j].isRed()) {
 					if (i + 2 < p.board.length) {
 						if (j - 2 >= 0 && p.board[i + 2][j - 2].isEmpty() && p.board[i + 1][j - 1].isEmpty()) {
 							temp = Position.deepSquareCopy(p.board);
@@ -268,13 +309,13 @@ public class EndgameDatabase implements Serializable {
 						}
 						if (j + 2 < p.board[i].length && p.board[i + 2][j + 2].isEmpty() && p.board[i + 1][j + 1].isEmpty()) {
 							temp = Position.deepSquareCopy(p.board);
-							temp[i + 2][j - 2] = new Square(temp[i][j]);
+							temp[i + 2][j + 2] = new Square(temp[i][j]);
 							temp[i][j].setEmpty();
-							temp[i + 1][j - 1].setBlack();
+							temp[i + 1][j + 1].setBlack();
 							uncapturePositions.add(new Position(temp, prevTurn));
 
 							temp = Position.deepSquareCopy(temp);
-							temp[i + 1][j - 1].setBlackKing();
+							temp[i + 1][j + 1].setBlackKing();
 							uncapturePositions.add(new Position(temp, prevTurn));
 						}
 					}
@@ -292,7 +333,7 @@ public class EndgameDatabase implements Serializable {
 								temp[i - 1][j - 1].setBlackKing();
 								uncapturePositions.add(new Position(temp, prevTurn));
 							}
-							if (j + 2 >= 0 && p.board[i - 2][j + 2].isEmpty() && p.board[i - 1][j + 1].isEmpty()) {
+							if (j + 2 < p.board[i].length && p.board[i - 2][j + 2].isEmpty() && p.board[i - 1][j + 1].isEmpty()) {
 								temp = Position.deepSquareCopy(p.board);
 								temp[i - 2][j + 2].setRedKing();
 								temp[i][j].setEmpty();
@@ -305,8 +346,8 @@ public class EndgameDatabase implements Serializable {
 							}
 						}
 					}
-				} else if (p.turn == Square.BLACK && p.board[i][j].isBlack()) {
-					if (i - 2 < p.board.length) {
+				} else if (prevTurn == Square.BLACK && p.board[i][j].isBlack()) {
+					if (i - 2 >= 0) {
 						if (j - 2 >= 0 && p.board[i - 2][j - 2].isEmpty() && p.board[i - 1][j - 1].isEmpty()) {
 							temp = Position.deepSquareCopy(p.board);
 							temp[i - 2][j - 2] = new Square(temp[i][j]);
@@ -332,7 +373,7 @@ public class EndgameDatabase implements Serializable {
 					}
 
 					if (p.board[i][j].isKing()) {
-						if (i + 2 >= 0) {
+						if (i + 2 < p.board.length) {
 							if (j - 2 >= 0 && p.board[i + 2][j - 2].isEmpty() && p.board[i + 1][j - 1].isEmpty()) {
 								temp = Position.deepSquareCopy(p.board);
 								temp[i + 2][j - 2].setBlackKing();
@@ -344,7 +385,7 @@ public class EndgameDatabase implements Serializable {
 								temp[i + 1][j - 1].setRedKing();
 								uncapturePositions.add(new Position(temp, prevTurn));
 							}
-							if (j + 2 >= 0 && p.board[i + 2][j + 2].isEmpty() && p.board[i + 1][j + 1].isEmpty()) {
+							if (j + 2 < p.board[i].length && p.board[i + 2][j + 2].isEmpty() && p.board[i + 1][j + 1].isEmpty()) {
 								temp = Position.deepSquareCopy(p.board);
 								temp[i + 2][j + 2].setBlackKing();
 								temp[i][j].setEmpty();
@@ -366,98 +407,167 @@ public class EndgameDatabase implements Serializable {
 
 	/**
 	 * Generatess all legal board configurations with at most n pieces.
+	 * NOTE: Still buggy - includes subtle unreachable positions.
 	 * @param n The maximum number of red pieces allowed on the table.
 	 * @return Returns the set of all legal positions.
 	 */
-	private static HashSet<Position> generateAllPositions(int n) {
+	public static Set<Position> generateAllPositions(int n) {
 		// We can use dynamic programming - for every position with k pieces, there is a position with (k - 1) pieces that is one piece away.
 		// For each position with (k - 1) pieces, add another piece at every legal location, in all four possible states.
-		HashSet<Position> curr = new HashSet<>(), allPositions = new HashSet<>();
 		Square[][] emptyBoard = new Square[Checkers.BOARD_SIZE][Checkers.BOARD_SIZE], temp; // Initialize empty board.
 		for (int i = 0; i < emptyBoard.length; i++) {
 			for (int j = 0; j < emptyBoard[i].length; j++) {
 				emptyBoard[i][j] = new Square(Square.EMPTY, i, j);
 			}
-		}
+		}		
 
 		// Base case, k = 1. Simply put a single piece, in all four possible states, in every legal place in an otherwise empty board.
-		for (int i = 1; i < emptyBoard.length; i += 2) { // Only iterate over dark squares of the checkers board.
-			for (int j = 1; j < emptyBoard[i].length; j += 2) {
-				// Cover all possible states.
-				temp = Position.deepSquareCopy(emptyBoard);
-				temp[i][j].setRed(); // Place piece at [i, j]
-				curr.add(new Position(temp, Square.RED));
-				curr.add(new Position(temp, Square.BLACK));
-				allPositions.add(new Position(temp, Square.RED));
-				allPositions.add(new Position(temp, Square.BLACK));
+		HashMap<Position, Integer> curr = new HashMap<>(), allPositions = new HashMap<>();
+		Position tempPos1, tempPos2;
+		for (int i = 0; i < emptyBoard.length; i++) { // Only iterate over dark squares of the checkers board.
+			for (int j = 0; j < emptyBoard[i].length; j++) {
+				if ((i + j) % 2 != 1) {
+					continue;
+				}
+
+				// Cover all possible states. Note that for boards that are completely dominated by one side, it is impossible to reach the
+				// position in which it is not the turn of the side with no pieces left (eg the board contains all black pieces and it's 
+				// black to move), so these are omitted. Such positions are impossible because one move prior to the position it would have
+				// been the turn of a side with no pieces remaining (since there is no move the side could have made to kill his own pieces)
+				// and the game would have ended there instead of proceeding to the position in question. To make sure such positions do not
+				// leak through for boards with more than one piece, keep track of boards that are dominated by a single color by mapping them
+				// to 0 if they're mixed and to the color if not.
+
+				// Skip boards that have non-kinged pieces on the enemy home rank or that are empty other than non-kinged pieces on the friendly home rank.
+				if (i != 0 && i != emptyBoard.length - 1) {
+					temp = Position.deepSquareCopy(emptyBoard);
+					temp[i][j].setRed(); // Place piece at [i, j]. Since the only piece on the board is red, it must be black's turn.
+					tempPos1 = new Position(temp, Square.BLACK);
+					curr.put(tempPos1, Square.RED);
+					allPositions.put(tempPos1, Square.RED);
+
+					temp = Position.deepSquareCopy(emptyBoard);
+					temp[i][j].setBlack(); // Here, the only piece on the board is black, so it must be red's turn.
+					tempPos1 = new Position(temp, Square.RED);
+					curr.put(tempPos1, Square.BLACK);
+					allPositions.put(tempPos1, Square.BLACK);
+				}
 
 				temp = Position.deepSquareCopy(emptyBoard);
 				temp[i][j].setRedKing();
-				curr.add(new Position(temp, Square.RED));
-				curr.add(new Position(temp, Square.BLACK));
-				allPositions.add(new Position(temp, Square.RED));
-				allPositions.add(new Position(temp, Square.BLACK));
-
-				temp = Position.deepSquareCopy(emptyBoard);
-				temp[i][j].setBlack();
-				curr.add(new Position(temp, Square.RED));
-				curr.add(new Position(temp, Square.BLACK));
-				allPositions.add(new Position(temp, Square.RED));
-				allPositions.add(new Position(temp, Square.BLACK));
+				tempPos1 = new Position(temp, Square.BLACK);
+				curr.put(tempPos1, Square.RED);
+				allPositions.put(tempPos1, Square.RED);
 
 				temp = Position.deepSquareCopy(emptyBoard);
 				temp[i][j].setBlackKing();
-				curr.add(new Position(temp, Square.RED));
-				curr.add(new Position(temp, Square.BLACK));
-				allPositions.add(new Position(temp, Square.RED));
-				allPositions.add(new Position(temp, Square.BLACK));
+				tempPos1 = new Position(temp, Square.RED);
+				curr.put(tempPos1, Square.BLACK);
+				allPositions.put(tempPos1, Square.BLACK);
 			}
 		}
 
-		HashSet<Position> next; // Used to store boards one recursive level up.
-		for (int k = 2; k <= n; k++) {
-			next = new HashSet<>();
-			for (Position p : curr) { // Iterate over all board configurations with (k - 1) pieces.
+		// Dynamic programming part - use level k set to construct level (k + 1) set.
+		HashMap<Position, Integer> next = new HashMap<>(); // Used to store boards one recursive level up.
+		int maxPieces = (Checkers.BOARD_SIZE / 2 - 1) * (Checkers.BOARD_SIZE / 2); // Maximum number of pieces for either side.
+		// for (int k = 2; k <= n; k++) {
+		for (int k = 2; k <= 2; k++) {
+			next.clear();
+			for (Position p : curr.keySet()) { // Iterate over all board configurations with (k - 1) pieces to construct level k boards.
+
 				// Add the k-th piece, in all states, in every legal location.
-				for (int i = 1; i < p.board.length; i += 2) {
-					for (int j = 1; j < p.board[i].length; j += 2) {
-						if (p.board[i][j].isEmpty()) { // Location is empty.
-							// Cover all possible states.
-							temp = Position.deepSquareCopy(p.board);
-							temp[i][j].setRed(); // Place piece at [i, j]
-							next.add(new Position(temp, Square.RED));
-							next.add(new Position(temp, Square.BLACK));
-							allPositions.add(new Position(temp, Square.RED));
-							allPositions.add(new Position(temp, Square.BLACK));
+				for (int i = 0; i < p.board.length; i++) {
+					for (int j = 0; j < p.board[i].length; j++) {
+						if (((i + j) % 2 != 1) || !p.board[i][j].isEmpty()) { // Must be an empty dark square to place piece.
+							continue;
+						}
+						
+						// Cover all possible states.
+						
+						// Add another red piece this iteration if the number of red pieces isn't already saturated.
+						if (p.redPieceCount() + 1 <= maxPieces) {
+							if (i != 0) {
+								temp = Position.deepSquareCopy(p.board);
+								temp[i][j].setRed(); // Place piece at [i, j]
+								// If the position is marked red, it contains all red pieces, so don't put any additional red pieces with red to move.
+								if (curr.get(p) == Square.RED) {
+									tempPos1 = new Position(temp, Square.BLACK);
+									next.put(tempPos1, Square.RED);
+									allPositions.put(tempPos1, Square.RED);
+								} else {
+									tempPos1 = new Position(temp, Square.RED);
+									next.put(tempPos1, 0);
+									allPositions.put(tempPos1, 0);
+
+									tempPos2 = new Position(temp, Square.BLACK);
+									next.put(tempPos2, 0);
+									allPositions.put(tempPos2, 0);
+								}
+							}
 
 							temp = Position.deepSquareCopy(p.board);
 							temp[i][j].setRedKing();
-							next.add(new Position(temp, Square.RED));
-							next.add(new Position(temp, Square.BLACK));
-							allPositions.add(new Position(temp, Square.RED));
-							allPositions.add(new Position(temp, Square.BLACK));
 
-							temp = Position.deepSquareCopy(p.board);
-							temp[i][j].setBlack();
-							next.add(new Position(temp, Square.RED));
-							next.add(new Position(temp, Square.BLACK));
-							allPositions.add(new Position(temp, Square.RED));
-							allPositions.add(new Position(temp, Square.BLACK));
+							if (curr.get(p) == Square.RED) {
+								tempPos1 = new Position(temp, Square.BLACK);
+
+								next.put(tempPos1, Square.RED);
+								allPositions.put(tempPos1, Square.RED);
+							} else {
+								tempPos1 = new Position(temp, Square.RED);
+								next.put(tempPos1, 0);
+								allPositions.put(tempPos1, 0);
+
+								tempPos2 = new Position(temp, Square.BLACK);
+								next.put(tempPos2, 0);
+								allPositions.put(tempPos2, 0);
+							}
+						}
+
+						// Add another black piece this iteration if the number of black pieces isn't already saturated.
+						if (p.blackPieceCount() + 1 <= maxPieces) {
+							if (i != p.board.length - 1) {
+								temp = Position.deepSquareCopy(p.board);
+								temp[i][j].setBlack();
+								if (curr.get(p) == Square.BLACK) {
+									tempPos1 = new Position(temp, Square.RED);
+									next.put(tempPos1, Square.BLACK);
+									allPositions.put(tempPos1, Square.BLACK);
+								} else {
+									tempPos1 = new Position(temp, Square.RED);
+									next.put(tempPos1, 0);
+									allPositions.put(tempPos1, 0);
+
+									tempPos2 = new Position(temp, Square.BLACK);
+									next.put(tempPos2, 0);
+									allPositions.put(tempPos2, 0);
+								}
+							}
 
 							temp = Position.deepSquareCopy(p.board);
 							temp[i][j].setBlackKing();
-							next.add(new Position(temp, Square.RED));
-							next.add(new Position(temp, Square.BLACK));
-							allPositions.add(new Position(temp, Square.RED));
-							allPositions.add(new Position(temp, Square.BLACK));
+							if (curr.get(p) == Square.BLACK) {
+								tempPos1 = new Position(temp, Square.RED);
+								next.put(tempPos1, Square.BLACK);
+								allPositions.put(tempPos1, Square.BLACK);
+							} else {
+								tempPos1 = new Position(temp, Square.RED);
+								next.put(tempPos1, 0);
+								allPositions.put(tempPos1, 0);
+
+								tempPos2 = new Position(temp, Square.BLACK);
+								next.put(tempPos2, 0);
+								allPositions.put(tempPos2, 0);
+							}
 						}
 					}
+
 				}
 			}
 
-			curr = new HashSet<>(next); // Update.
+			curr = new HashMap<>(next); // Update.
 		}
 
-		return allPositions;
+		return allPositions.keySet();
 	}
 }

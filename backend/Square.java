@@ -1,7 +1,9 @@
+import java.io.Serializable;
+
 /**
  * Simple class representing a square on the board.
  */
-public class Square {
+public class Square implements Serializable {
 	public static final int EMPTY = 0; // Represents an empty square.
 	public static final int RED = 1; // Represents a square occupied by a red piece.
 	public static final int BLACK = -1; // Represents a square occipied by a black piece.
@@ -27,22 +29,7 @@ public class Square {
  	 * @param s A square to clone.
  	 */
 	public Square(Square s) {
-		if (s.isEmpty()) {
-			this.state = Square.EMPTY;
-		} else if (s.isRed()) {
-			if (s.isKing()) {
-				this.state = Square.RED_KING;
-			} else {
-				this.state = Square.RED;
-			}
-		} else {
-			if (s.isKing()) {
-				this.state = Square.BLACK_KING;
-			} else {
-				this.state = Square.BLACK;
-			}
-		}
-
+		this.state = s.getState();
 		this.i = s.getVerticalCoord();
 		this.j = s.getHorizontalCoord();
 	}
@@ -59,6 +46,13 @@ public class Square {
 	 */
 	public int getHorizontalCoord() {
 		return this.j;
+	}
+
+	/**
+	 * @return Returns this Square's state.
+	 */
+	public int getState() {
+		return this.state;
 	}
 
 	/**
@@ -140,30 +134,13 @@ public class Square {
 	}
 
 	@Override
-	public int hashCode() {
-		return this.state + BLACK_KING;
+	public boolean equals(Object obj) {
+		Square s = (Square) obj;
+		return (this.state == s.getState()) && (this.i == s.getVerticalCoord()) && (this.j == s.getHorizontalCoord());	
 	}
 
 	@Override
-	public boolean equals(Object obj) {
-		Square s = (Square) obj;
-		int state;
-		if (s.isRed()) {
-			if (s.isKing()) {
-				state = Square.RED_KING;
-			} else {
-				state = Square.RED;
-			}
-		} else if (s.isBlack()) {
-			if (s.isKing()) {
-				state = Square.BLACK_KING;
-			} {
-				state = Square.BLACK;
-			}
-		} else {
-			state = Square.EMPTY;
-		}
-
-		return (this.state == state) && (this.i == s.getVerticalCoord()) && (this.j == s.getHorizontalCoord());
+	public int hashCode() {
+		return Integer.parseInt(Integer.toString(this.state - BLACK_KING + 1) + Integer.toString(this.i) + Integer.toString(this.j));
 	}
 }

@@ -2,11 +2,12 @@ import java.lang.Math;
 import java.util.Scanner;
 import java.util.Random;
 import java.util.Arrays;
+import java.io.Serializable;
 
 /**
- * Main class for interfacing with the actual TicTacToe game.
+ * Main class for interfacing with the actual Checkers game.
  */
-public class Checkers {
+public class Checkers implements Serializable {
 	public static final int BOARD_SIZE = 4; // Board dimensions, set to 8, the standard for English draughts, by default. Must be even.
 	public static final int drawMoveLimit = 40; // The maximum number of consecutive moves, on one side, without a capture before the game draws. 
 
@@ -118,7 +119,7 @@ public class Checkers {
 
 		while ((outcome = game.isGameOver()) == 0) {
 			System.out.println("Board:");
-			game.printBoard();
+			System.out.println(game);
 
 			if (game.getCurrentTurn() == Square.RED) { // It's the user's turn.
 				System.out.println("Your turn.");
@@ -141,12 +142,12 @@ public class Checkers {
 
 				// If the move is a capture, check capture sequences.
 				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
-					while (game.canCaptureForward(coordinates[2], coordinates[3], game.getCurrentTurn()) || 
-						   game.canCaptureBackward(coordinates[2], coordinates[3], game.getCurrentTurn())) {
+					while (numForwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0 || 
+						   numBackwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0) {
 
 						i++;
 						System.out.println("Board:");
-						game.printBoard();
+						System.out.println(game);
 
 						// Ask if user wants to initiaze a capture sequence.
 						while (true) {
@@ -223,8 +224,8 @@ public class Checkers {
 									   ", " + coordinates[3] + "), captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
 									   ((coordinates[1] + coordinates[3]) / 2) + ").");
 					Random r = new Random();
-					while (game.canCaptureForward(coordinates[2], coordinates[3], game.getCurrentTurn()) || 
-						   game.canCaptureBackward(coordinates[2], coordinates[3], game.getCurrentTurn())) {
+					while (numForwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0 || 
+						   numBackwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0) {
 						if (r.nextInt(2) == 0) { // Continue the capture sequence with probability 0.5
 							break;
 						}
@@ -232,7 +233,7 @@ public class Checkers {
 						coordinates = player.doubleJump(game, game.getPiece(coordinates[0], coordinates[1]));
 						System.out.println("Opponent double jumped - captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
 									   	   ((coordinates[1] + coordinates[3]) / 2) + ")" + ". Board:");
-						game.printBoard();
+						System.out.println(game);
 					}
 				} else {
 					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
@@ -273,7 +274,7 @@ public class Checkers {
 
 		while ((outcome = game.isGameOver()) == 0) {
 			System.out.println("Board:");
-			game.printBoard();
+			System.out.println(game);
 			System.out.println("Player to move: " + ((game.getCurrentTurn() == 1) ? "red" : "black"));
 			System.out.println("To enter a move, specify the square of the piece to move, and then the square to move to (enter \"help\" for usage).");
 
@@ -294,12 +295,12 @@ public class Checkers {
 
 			// If the move is a capture, check capture sequences.
 			if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
-				while (game.canCaptureForward(coordinates[2], coordinates[3], game.getCurrentTurn()) || 
-					   game.canCaptureBackward(coordinates[2], coordinates[3], game.getCurrentTurn())) {
+				while (numForwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0 || 
+					   numBackwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0) {
 
 					i++;
 					System.out.println("Board:");
-					game.printBoard();
+					System.out.println(game);
 
 					// Ask if user wants to initiaze a capture sequence.
 					while (true) {
@@ -471,12 +472,12 @@ public class Checkers {
 				if (!this.board[i][j].isEmpty()) { // Skip empty squares, which trivially have no valid moves.
 					// Check if the piece on square [i, j] can make a valid move.
 					if (!redHasValidMoves && this.board[i][j].isRed()) {
-						if (hasValidMoves(i, j, Square.RED)) {
+						if (numValidMoves(this.board, i, j, Square.RED) != 0) {
 							redHasValidMoves = true;
 						}
 					}
 					if (!blackHasValidMoves && this.board[i][j].isBlack()) {
-						if (hasValidMoves(i, j, Square.BLACK)) {
+						if (numValidMoves(this.board, i, j, Square.BLACK) != 0) {
 							blackHasValidMoves = true;
 						}
 					}
@@ -491,109 +492,112 @@ public class Checkers {
 		if (redHasValidMoves && blackHasValidMoves) {
 			return 0;
 		} else if (redHasValidMoves) {
-			return 1;
+			if (this.currentTurn == Square.BLACK) {
+				return 1;
+			} else {
+				return 0;
+			}
 		} else if (blackHasValidMoves) {
-			return -1;
+			if (this.currentTurn == Square.RED) {
+				return -1;
+			} else {
+				return 0;
+			}
 		} else {
-			return 2;
+			return (this.currentTurn == Square.RED) ? -1 : 1; // If both are out of moves, the board is stalemated, and whichever side is to
+															  // move (but obviously can't) loses.
 		}
 	}
 
 	/**
- 	 * Returns whether or not the piece at [i, j] can make any legal moves.
+ 	 * Returns the number of legal moves the piece at [i, j] can make.
  	 * @param i The vertical coordinate of the square.
  	 * @param j The horizontal coordinate of the square.
  	 * @param turn Whose turn to assume it is when searching for valid moves.
  	 * @return Whether or not the piece on square [i, j] can make any valid moves.
  	 */
-	public boolean hasValidMoves(int i, int j, int turn) {
-		if (this.board[i][j].isRed() != (turn == Square.RED)) {
-			return false; // The player whose turn it is must match the piece on the given square.
+	public static int numValidMoves(Square[][] board, int i, int j, int turn) {
+		if (board[i][j].isRed() != (turn == Square.RED)) {
+			return 0; // The player whose turn it is must match the piece on the given square.
 		}
+
+		int count = 0;
 
 		if (turn == Square.RED) {
 			// Check the immediate two squares forward.
 			if (i - 1 >= 0) {
 				if (j - 1 >= 0) {
-					if (this.board[i - 1][j - 1].isEmpty()) {
-						return true; // Can move diagonally up and right.
+					if (board[i - 1][j - 1].isEmpty()) {
+						count++; // Can move diagonally up and right.
 					}
 				}
 				if (j + 1 < BOARD_SIZE) {
-					if (this.board[i - 1][j + 1].isEmpty()) {
-						return true; // Can move diagonally up and left.
+					if (board[i - 1][j + 1].isEmpty()) {
+						count++; // Can move diagonally up and left.
 					}
 				}
 			}
 
 			// Check if capture is possible.
-			if (canCaptureForward(i, j, turn)) {
-				return true;
-			}
+			count += numForwardCaptures(board, i, j, turn);
 
 			// If the piece is a king, check squares behind it.
-			if (this.board[i][j].isKing()) {
+			if (board[i][j].isKing()) {
 				if (i + 1 < BOARD_SIZE) {
 					if (j - 1 >= 0) {
-						if (this.board[i + 1][j - 1].isEmpty()) {
-							return true; // Can move diagonally down and left.
+						if (board[i + 1][j - 1].isEmpty()) {
+							count++; // Can move diagonally down and left.
 						}
 					}
 					if (j + 1 < BOARD_SIZE) {
-						if (this.board[i + 1][j + 1].isEmpty()) {
-							return true; // Can move diagonally down and right.
+						if (board[i + 1][j + 1].isEmpty()) {
+							count++; // Can move diagonally down and right.
 						}
 					}
 				}
 
 				// Check for backwards captures.
-				if (canCaptureBackward(i, j, turn)) {
-					return true;
-				}
+				count += numBackwardCaptures(board, i, j, turn);
 			}
 		} else {
 			// Check the immediate two squares forward.
 			if (i + 1 < BOARD_SIZE) {
 				if (j - 1 >= 0) {
-					if (this.board[i + 1][j - 1].isEmpty()) {
-						return true; // Can move diagonally up and right
+					if (board[i + 1][j - 1].isEmpty()) {
+						count++; // Can move diagonally up and right
 					}
 				}
 				if (j + 1 < BOARD_SIZE) {
-					if (this.board[i + 1][j + 1].isEmpty()) {
-						return true; // Can move diagonally up and left
+					if (board[i + 1][j + 1].isEmpty()) {
+						count++; // Can move diagonally up and left
 					}
 				}
 			}
 
 			// Check if capture is possible.
-			if (canCaptureForward(i, j, turn)) {
-				return true;
-			}
+			count += numForwardCaptures(board, i, j, turn);
 
 			// If the piece is a king, check squares behind it.
-			if (this.board[i][j].isKing()) {
+			if (board[i][j].isKing()) {
 				if (i - 1 >= 0) {
 					if (j - 1 >= 0) {
-						if (this.board[i - 1][j - 1].isEmpty()) {
-							return true; // Can move diagonally down and left.
+						if (board[i - 1][j - 1].isEmpty()) {
+							count++; // Can move diagonally down and left.
 						}
 					}
 					if (j + 1 < BOARD_SIZE) {
-						if (this.board[i - 1][j + 1].isEmpty()) {
-							return true; // Can move diagonally down and right.
+						if (board[i - 1][j + 1].isEmpty()) {
+							count++; // Can move diagonally down and right.
 						}
 					}
 				}
 
 				// Check for backwards captures.
-				if (canCaptureBackward(i, j, turn)) {
-					return true;
-				}
+				count += numBackwardCaptures(board, i, j, turn);
 			}
 		}
 
-		return false;
+		return count;
 	}
 
 	/**
@@ -645,117 +649,149 @@ public class Checkers {
 		return this.drawMoveCount;
 	}
 
-	@Override
-	public int hashCode() {
-		if (currentTurn == Square.RED) {
-			return Arrays.deepHashCode(this.board) * 10 + 1;
-		} else {
-			return Arrays.deepHashCode(this.board);
-		}
-	}
 
 	@Override
 	public boolean equals(Object obj) {
-		Checkers other = (Checkers) obj;
-		if (this.board.length != other.board.length) {
-			return false;
+		return (new Position(this)).equals(new Position((Checkers) obj));
+	}
+
+	@Override
+	public int hashCode() {
+		return (new Position(this)).hashCode();
+	}
+
+	@Override
+	public String toString() {
+		String s = "";
+
+		if (BOARD_SIZE < 10) {
+			s += "  ";
+		} else {
+			s += "   ";
 		}
-
-		for (int i = 0; i < this.board.length; i++) {
-			if (this.board[i].length != other.board[i].length) {
-				return false;
-			}
-
-			for (int j = 0; j < this.board[i].length; j++) {
-				if (!this.board[i][j].equals(other.board[i][j])) {
-					return false;
+		for (int i = 0; i < BOARD_SIZE; i++) {
+			s += i + " ";
+		}
+		s += "\n";
+		for (int i = 0; i < BOARD_SIZE; i++) {
+			if (BOARD_SIZE < 10) {
+				s += i + " ";
+			} else {
+				if (i < 10) {
+					s += i + "  ";
+				} else if (i < 100) {
+					s += i + " ";
 				}
 			}
+			for (int j = 0; j < BOARD_SIZE; j++) {
+				if (this.board[i][j].isEmpty()) {
+					s += "  ";
+				} else if (this.board[i][j].isRed()) {
+					if (this.board[i][j].isKing()) {
+						s += "R ";
+					} else {
+						s += "r ";
+					}
+				} else {
+					if (this.board[i][j].isKing()) {
+						s += "B ";
+					} else {
+						s += "b ";
+					}
+				}
+			}
+			s += "|\n";
 		}
-
-		return (this.currentTurn == other.getCurrentTurn());
+		for (int i = 0; i <= BOARD_SIZE; i++) {
+			s += "--";
+		}
+		
+		return s + "\n";
 	}
 
 	// Helper methods below this line.
 
 	/**
-	 * Returns whether or not the piece at [i, j] can make a capture forward.
+	 * Returns the number of forward captures the piece at [i, j] can make, if any.
 	 * @param i The vertical coordinate of the square.
 	 * @param j The horizontal coordinate of the square.
 	 * @param turn Whose turn to assume it is when searching for valid moves.
 	 */
-	public boolean canCaptureForward(int i, int j, int turn) {
+	public static int numForwardCaptures(Square[][] board, int i, int j, int turn) {
+		int count = 0;
 		if (turn == Square.RED) {
 			if (i - 2 >= 0) {
 				if (j - 2 >= 0) {
-					if (this.board[i - 2][j - 2].isEmpty() && !this.board[i - 1][j - 1].isRed() && !this.board[i - 1][j - 1].isEmpty()) {
-						return true; // Can capture diagonally up and left.
+					if (board[i - 2][j - 2].isEmpty() && !board[i - 1][j - 1].isRed() && !board[i - 1][j - 1].isEmpty()) {
+						count++; // Can capture diagonally up and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i - 2][j + 2].isEmpty() && !this.board[i - 1][j + 1].isRed() && !this.board[i - 1][j + 1].isEmpty()) {
-						return true; // Can capture digaonally up and right.
+					if (board[i - 2][j + 2].isEmpty() && !board[i - 1][j + 1].isRed() && !board[i - 1][j + 1].isEmpty()) {
+						count++; // Can capture digaonally up and right.
 					}
 				}
 			}
 		} else {
 			if (i + 2 < BOARD_SIZE) {
 				if (j - 2 >= 0) {
-					if (this.board[i + 2][j - 2].isEmpty() && !this.board[i + 1][j - 1].isBlack() && !this.board[i + 1][j - 1].isEmpty()) {
-						return true; // Can capture diagonally up and left.
+					if (board[i + 2][j - 2].isEmpty() && !board[i + 1][j - 1].isBlack() && !board[i + 1][j - 1].isEmpty()) {
+						count++; // Can capture diagonally up and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i + 2][j + 2].isEmpty() && !this.board[i + 1][j + 1].isBlack() && !this.board[i + 1][j + 1].isEmpty()) {
-						return true; // Can capture digaonally up and right.
+					if (board[i + 2][j + 2].isEmpty() && !board[i + 1][j + 1].isBlack() && !board[i + 1][j + 1].isEmpty()) {
+						count++; // Can capture digaonally up and right.
 					}
 				}
 			}
 		}
 
-		return false;
+		return count;
 	}
 
 	/**
-	 * Checks if a piece can capture backwards.
+	 * Returns the number of backward captures the piece at [i, j] can make, if any.
 	 * @param i The vertical coordinate of the square.
 	 * @param j The horizontal coordinate of the square.
 	 * @param turn Whose turn to assume it is when searching for valid moves.
 	 */
-	public boolean canCaptureBackward(int i, int j, int turn) {
-		if (!this.board[i][j].isKing()) {
-			return false; // Must be a king to capture backwards.
+	public static int numBackwardCaptures(Square[][] board, int i, int j, int turn) {
+		if (!board[i][j].isKing()) {
+			return 0; // Must be a king to capture backwards.
 		}
+
+		int count = 0;
 
 		if (turn == Square.RED) {
 			if (i + 2 < BOARD_SIZE) {
 				if (j - 2 >= 0) {
-					if (this.board[i + 2][j - 2].isEmpty() && !this.board[i + 1][j - 1].isRed() && !this.board[i + 1][j - 1].isEmpty()) {
-						return true; // Can capture diagonally down and left.
+					if (board[i + 2][j - 2].isEmpty() && !board[i + 1][j - 1].isRed() && !board[i + 1][j - 1].isEmpty()) {
+						count++; // Can capture diagonally down and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i + 2][j + 2].isEmpty() && !this.board[i + 1][j + 1].isRed() && !this.board[i + 1][j + 1].isEmpty()) {
-						return true; // Can capture diagonally down and right.
+					if (board[i + 2][j + 2].isEmpty() && !board[i + 1][j + 1].isRed() && !board[i + 1][j + 1].isEmpty()) {
+						count++; // Can capture diagonally down and right.
 					}
 				}
 			}
 		} else {
-			if (i - 2 < BOARD_SIZE) {
+			if (i - 2 >= 0) {
 				if (j - 2 >= 0) {
-					if (this.board[i - 2][j - 2].isEmpty() && !this.board[i - 1][j - 1].isBlack() && !this.board[i - 1][j - 1].isEmpty()) {
-						return true; // Can capture diagonally down and left.
+					if (board[i - 2][j - 2].isEmpty() && !board[i - 1][j - 1].isBlack() && !board[i - 1][j - 1].isEmpty()) {
+						count++; // Can capture diagonally down and left.
 					}
 				}
 				if (j + 2 < BOARD_SIZE) {
-					if (this.board[i - 2][j + 2].isEmpty() && !this.board[i - 1][j + 1].isBlack() && !this.board[i - 1][j + 1].isEmpty()) {
-						return true; // Can capture diagonally down and right.
+					if (board[i - 2][j + 2].isEmpty() && !board[i - 1][j + 1].isBlack() && !board[i - 1][j + 1].isEmpty()) {
+						count++; // Can capture diagonally down and right.
 					}
 				}
 			}
 		}
 
-		return false;
+		return count;
 	}
 
 		/**
@@ -859,53 +895,5 @@ public class Checkers {
 		System.out.println("\tTo specify a square, simply use the following format: (vertical, horizontal).");
 		System.out.println("\tEnter \"exit\" to terminate game or \"help\" for help.");
 		System.out.println("\tLegend: r = red piece, b = black piece, R = red king, B = black king");
-	}
-
-	/**
-	 * Prints the board to console, in human readable format.
-	 */
-	public void printBoard() {
-		if (BOARD_SIZE < 10) {
-			System.out.print("  ");
-		} else {
-			System.out.print("   ");
-		}
-		for (int i = 0; i < BOARD_SIZE; i++) {
-			System.out.print(i + " ");
-		}
-		System.out.println();
-		for (int i = 0; i < BOARD_SIZE; i++) {
-			if (BOARD_SIZE < 10) {
-				System.out.print(i + " ");
-			} else {
-				if (i < 10) {
-					System.out.print(i + "  ");
-				} else if (i < 100) {
-					System.out.print(i + " ");				
-				}
-			}
-			for (int j = 0; j < BOARD_SIZE; j++) {
-				if (this.board[i][j].isEmpty()) {
-					System.out.print("  ");
-				} else if (this.board[i][j].isRed()) {
-					if (this.board[i][j].isKing()) {
-						System.out.print("R ");
-					} else {
-						System.out.print("r ");
-					}
-				} else {
-					if (this.board[i][j].isKing()) {
-						System.out.print("B ");
-					} else {
-						System.out.print("b ");
-					}
-				}
-			}
-			System.out.println("|");
-		}
-		for (int i = 0; i <= BOARD_SIZE; i++) {
-			System.out.print("--");
-		}
-		System.out.println();
 	}
 }
