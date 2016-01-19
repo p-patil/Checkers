@@ -9,10 +9,12 @@ import java.io.ObjectInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 
+// IMPLEMENT DOUBLE JUMP FUNCTIONALITY.
+
 /**
  * Class for building an endgame database.
  */
-public class EndgameDatabase implements Serializable {
+public class EndgameTablebase implements Serializable {
 	public static final int ENDGAME_LIMIT = 4; // The threshold number of pieces before an endgame database is used.
 
 	public HashMap<Checkers, Position> database; // Maps checkers games to the corresponding position object, whose successors and successorScores
@@ -24,9 +26,9 @@ public class EndgameDatabase implements Serializable {
 	 * games. For BOARD_SIZE = 8 and ENDGAME_LIMIT = 5, this is about 202k games.
 	 * @param turn The side (red or black) to build the database for.
 	 */
-	public EndgameDatabase(int turn) {
+	public EndgameTablebase(int turn) {
 		this.database = new HashMap<>();
-		for (Position p : generateWinningPositions(generateAllPositions(Checkers.BOARD_SIZE), turn)) {
+		for (Position p : generateWinningPositions(generateAllPositions(ENDGAME_LIMIT), turn)) {
 			this.database.put(new Checkers(p.board, p.turn), p);
 		}
 	}
@@ -56,11 +58,11 @@ public class EndgameDatabase implements Serializable {
 	 * @param filepath The path to the .ser file to deserialize.
 	 * @return Returns the deserialized object, or null if there was an error.
 	 */
-	public static EndgameDatabase deserialize(String filepath) {
+	public static EndgameTablebase deserialize(String filepath) {
 		try {
 			FileInputStream fileIn = new FileInputStream(filepath);
 			ObjectInputStream in = new ObjectInputStream(fileIn);
-			EndgameDatabase database = (EndgameDatabase) in.readObject();
+			EndgameTablebase database = (EndgameTablebase) in.readObject();
 			in.close();
 			fileIn.close();
 			return database;
@@ -94,8 +96,8 @@ public class EndgameDatabase implements Serializable {
 
 		int currentTurn, prevTurn, totalValidMoves, maxPieces = (Checkers.BOARD_SIZE / 2 - 1) * (Checkers.BOARD_SIZE / 2), lastSize = -1;
 		currentTurn = prevTurn = (player == Square.RED) ? Square.BLACK : Square.RED;
-		while (allPositions.size() != lastSize) { // Keep iterating until all positions have been seen (ie no new positions are added)
-			lastSize = allPositions.size();
+		// Keep iterating until all positions have been seen (ie no new positions are added)
+		for (int k = 1; allPositions.size() != lastSize; lastSize = allPositions.size(), k++) {
 			next.clear();
 
 			// If curr contains positions in which it's black to move and no matter what move black makes, red can force a win in at most k moves.
@@ -107,7 +109,7 @@ public class EndgameDatabase implements Serializable {
 						if (!allPositions.contains(q)) {
 							if (!q.isLeaf()) {
 								q.generateSuccessors();
-								q.successorScores.put(p, 1);
+								q.successorScores.put(p, k);
 							}
 
 							next.add(q);
@@ -122,7 +124,7 @@ public class EndgameDatabase implements Serializable {
 								if (!allPositions.contains(q)) {
 									if (!q.isLeaf()) {
 										q.generateSuccessors();
-										q.successorScores.put(p, 1);
+										q.successorScores.put(p, k);
 									}
 
 									next.add(q);
@@ -143,7 +145,7 @@ public class EndgameDatabase implements Serializable {
 					for (Position q : unMove(p)) {
 						if (!q.isLeaf()) {
 							q.generateSuccessors();
-							q.successorScores.put(p, 1);
+							q.successorScores.put(p, k);
 						}
 						if (!moveCounts.containsKey(q)) {
 							moveCounts.put(q, 0);
@@ -157,7 +159,7 @@ public class EndgameDatabase implements Serializable {
 						if (p.pieceCount() + 1 <= ENDGAME_LIMIT) {
 							for (Position q : unCapture(p)) {
 								q.generateSuccessors();
-								q.successorScores.put(p, 1);
+								q.successorScores.put(p, k);
 
 								if (!moveCounts.containsKey(q)) {
 									moveCounts.put(q, 0);

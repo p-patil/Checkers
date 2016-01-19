@@ -8,7 +8,7 @@ import java.io.Serializable;
  * Main class for interfacing with the actual Checkers game.
  */
 public class Checkers implements Serializable {
-	public static final int BOARD_SIZE = 4; // Board dimensions, set to 8, the standard for English draughts, by default. Must be even.
+	public static final int BOARD_SIZE = 8; // Board dimensions, set to 8, the standard for English draughts, by default. Must be even.
 	public static final int drawMoveLimit = 40; // The maximum number of consecutive moves, on one side, without a capture before the game draws. 
 
 	public Square[][] board; // The checkers board. By convention, the upper left corner, on black's side, is [0, 0], with the first dimension 
@@ -96,7 +96,156 @@ public class Checkers implements Serializable {
 				}
 			}
 		}
-	}	
+	}
+
+	/**
+	 * Begins an interactive game of Checkers that can be played against a computer player.
+	 */
+	public static void playThroughConsoleAI(boolean useTablebases) {
+		CheckersAI player = new CheckersAI();
+		if (useTablebases) {
+			System.out.println("Initializing tablebase...");
+			player.initializeTablebase(Square.BLACK);
+		}
+
+		Checkers game = new Checkers();
+		Scanner reader = new Scanner(System.in);
+		int[] coordinates = new int[4];
+		String line;
+		int outcome;
+		int i = 1;
+
+		System.out.println();
+		System.out.println("\t\tWELCOME TO CHECKERS!");
+		System.out.println("\tLegend: r = red piece, b = black piece, R = red king, B = black king");
+		System.out.println();
+		System.out.println("\tTURN " + i);
+		System.out.println();
+
+		while ((outcome = game.isGameOver()) == 0) {
+			System.out.println("Board:");
+			System.out.println(game);
+
+			if (game.getCurrentTurn() == Square.RED) { // It's the user's turn.
+				System.out.println("Your turn.");
+				System.out.println("To enter a move, specify the square of the piece to move, and then the square to move to (enter \"help\" for usage).");
+
+				// Keep trying to parse for user input until a valid move is made.
+				while (true) {
+					if (getMoveAsInput(coordinates, reader, false) == -1) {
+						return;
+					}
+					if (coordinates == null) {
+						return;
+					}
+					if (!game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3])) {
+						System.out.println("Illegal move. Please enter a valid move.");
+					} else {
+						break;
+					}
+				}
+
+				// If the move is a capture, check capture sequences.
+				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
+					while (numForwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0 || 
+						   numBackwardCaptures(game.board, coordinates[2], coordinates[3], game.getCurrentTurn()) != 0) {
+
+						i++;
+						System.out.println("Board:");
+						System.out.println(game);
+
+						// Ask if user wants to initiaze a capture sequence.
+						while (true) {
+							System.out.print("Double jump? (yes/no) ");
+							line = reader.nextLine();
+							if (line.toLowerCase().equals("help")) {
+								printHelpString();
+								continue;
+							} else if (line.toLowerCase().equals("exit")) {
+								return;
+							}
+							if (!line.toLowerCase().equals("yes") && !line.toLowerCase().equals("no")) {
+								System.out.println("Invalid format. Please try again. Enter \"help\" for usage.");
+							} else {
+								break;
+							}
+						}
+
+						if (line.equals("yes")) { // If yes, repeat the process until the capture sequence is over.
+							System.out.print("Enter next move (must be capture): ");
+
+							// Have the user make the next move.
+							while (true) {
+								// Get user input, forcing it to be a capture.
+								do {
+									if (getMoveAsInput(coordinates, reader, true) == -1) {
+										return;
+									}
+									if (coordinates == null) {
+										return;
+									}
+								} while (Math.abs(coordinates[2] - coordinates[0]) != 2 || Math.abs(coordinates[3] - coordinates[1]) != 2);
+							
+								// Check if the move is valid.
+								game.board[coordinates[0]][coordinates[1]].makeKing(); // Temporarily make king to allow for backwards captures
+																					   // during double jumps.
+								if (!game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3])) {
+									System.out.print("Illegal move. Please enter a valid move: ");
+									line = reader.nextLine();
+									while (line.toLowerCase().equals("help")) {
+										printHelpString();
+										System.out.print("Move: ");
+										line = reader.nextLine();
+									}
+									if (line.toLowerCase().equals("exit")) {
+										return;
+									}
+									int state = (game.board[coordinates[2]][coordinates[3]].isRed() ? Square.RED : Square.BLACK);
+									game.board[coordinates[2]][coordinates[3]] = new Square(state, coordinates[2], coordinates[3]);
+								} else {
+									int state = (game.board[coordinates[2]][coordinates[3]].isRed() ? Square.RED : Square.BLACK);
+									game.board[coordinates[2]][coordinates[3]] = new Square(state, coordinates[2], coordinates[3]);								
+									break;
+								}
+							}
+						} else {
+							break;
+						}
+					}
+				}
+
+				System.out.println();
+				System.out.println("TURN " + i++);
+				System.out.println();
+			} else { // Player will move.
+				System.out.println();
+				System.out.println("TURN " + i++);
+				System.out.println();
+				coordinates = player.move(game); // Player makes a move.
+
+				// If the move was a capture, check for double jumps.
+				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
+					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
+									   ", " + coordinates[3] + "), captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
+									   ((coordinates[1] + coordinates[3]) / 2) + ").");
+				} else {
+					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
+						   			   ", " + coordinates[3] + ").");
+				}
+			}
+			
+			game.toggleTurn();
+		}
+
+		if (outcome == 2) {
+			System.out.println("Game drawn!");
+		} else if (outcome == 1) {
+			System.out.println("You won the game!");
+		} else if (outcome == -1) {
+			System.out.println("You lost. :(");
+		}
+		reader.close();
+	}
 
 	/**
 	 * Begins an interactive game of Checkers that can be played against a random player through the console, for testing purposes.
@@ -413,7 +562,7 @@ public class Checkers implements Serializable {
 		}
 		if (Math.abs(i_new - i_initial) == 2) { // Move is attempted capture.
 			Square capturedSquare = this.board[(i_initial + i_new) / 2][(j_initial + j_new) / 2];
-			if (capturedSquare.isEmpty() || capturedSquare.isRed() == (this.currentTurn == Square.RED)) {
+			if (capturedSquare.isEmpty() || (capturedSquare.isRed() && this.currentTurn == Square.RED || capturedSquare.isBlack() && this.currentTurn == Square.BLACK)) {
 				return false; // Capture must be on enemy piece.
 			}
 
@@ -517,7 +666,7 @@ public class Checkers implements Serializable {
  	 * @return Whether or not the piece on square [i, j] can make any valid moves.
  	 */
 	public static int numValidMoves(Square[][] board, int i, int j, int turn) {
-		if (board[i][j].isRed() != (turn == Square.RED)) {
+		if ((board[i][j].isRed() && turn != Square.RED) || (board[i][j].isBlack() && turn != Square.BLACK) || board[i][j].isEmpty()) {
 			return 0; // The player whose turn it is must match the piece on the given square.
 		}
 
