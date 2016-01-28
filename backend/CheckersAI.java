@@ -89,6 +89,10 @@ public class CheckersAI {
 		return best;
 	}
 
+	private static Object[] minimaxAlphaBeta() {
+		return null;
+	}
+
 	/**
 	 * Implmements logic for looking up in tablebase.
 	 * @param game The initial board configuration to look up.
