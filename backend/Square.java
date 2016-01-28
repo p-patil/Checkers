@@ -15,6 +15,13 @@ public class Square implements Serializable {
 	private int j; // Horizontal coordinate
 
 	/**
+	 * Empty constructor.
+	 */
+	public Square() {
+
+	}
+
+	/**
 	 * Basic constructor.
 	 *
 	 */
@@ -120,6 +127,17 @@ public class Square implements Serializable {
 	 */
 	public void setBlackKing() {
 		this.state = Square.BLACK_KING;
+	}
+
+	/**
+	 * Sets this state to be a copy of the inputted square. Sets the state of this square to the state of the given square, as well as the
+	 * coordinates.
+	 * @Param s The square whose state to copy.
+	 */
+	public void clone(Square s) {
+		this.state = s.getState();
+		this.i = s.getVerticalCoord();
+		this.j = s.getHorizontalCoord();
 	}
 
 	/**

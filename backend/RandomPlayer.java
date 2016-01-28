@@ -16,25 +16,25 @@ public class RandomPlayer {
 	 * @param game The game to move on.
 	 * @return Returns an array with four integers - the first pair is the source coordinates, the next is the destination coordinates.
 	 */
-	public int[] move(Checkers game) {
+	public int[] move(Position p) {
 		Square[] pieces; // Array to hold all pieces on our side.
-		if (game.getCurrentTurn() == Square.RED) {
-			pieces = new Square[game.getRedCount()];
+		if (p.turn == Square.RED) {
+			pieces = new Square[p.redPieceCount()];
 		} else {
-			pieces = new Square[game.getBlackCount()];
+			pieces = new Square[p.blackPieceCount()];
 		}
 
 		// Get all pieces.
 		int k = 0;
 		for (int i = 0; i < Checkers.BOARD_SIZE; i++) {
 			for (int j = 0; j < Checkers.BOARD_SIZE; j++) {
-				if (game.getCurrentTurn() == Square.RED) {
-					if (game.getPiece(i, j).isRed()) {
-						pieces[k++] = game.getPiece(i, j);						
+				if (p.turn == Square.RED) {
+					if (p.board[i][j].isRed()) {
+						pieces[k++] = p.board[i][j];
 					}
 				} else {
-					if (game.getPiece(i, j).isBlack()) {
-						pieces[k++] = game.getPiece(i, j);
+					if (p.board[i][j].isBlack()) {
+						pieces[k++] = p.board[i][j];
 					}
 				}
 			}
@@ -45,7 +45,7 @@ public class RandomPlayer {
 		Random r = new Random();
 		do {
 			piece = pieces[r.nextInt(pieces.length)];
-		} while (game.numValidMoves(game.board, piece.getVerticalCoord(), piece.getHorizontalCoord(), game.getCurrentTurn()) == 0);
+		} while (Position.numValidMoves(p.board, piece.getVerticalCoord(), piece.getHorizontalCoord(), p.turn) == 0);
 
 		// Make a random, legal move.
 		int offset_v, offset_h;
@@ -57,8 +57,8 @@ public class RandomPlayer {
 				offset_v = (r.nextInt(2) == 0) ? 1 : -1;
 				offset_h = (r.nextInt(2) == 0) ? 1 : -1;
 			}
-		} while (!game.move(piece.getVerticalCoord(), piece.getHorizontalCoord(), piece.getVerticalCoord() + offset_v, 
-						    piece.getHorizontalCoord() + offset_h));
+		} while (p.move(piece.getVerticalCoord(), piece.getHorizontalCoord(), piece.getVerticalCoord() + offset_v, 
+						    piece.getHorizontalCoord() + offset_h, false) == null);
 
 		int[] coordinates = new int[4];
 		coordinates[0] = piece.getVerticalCoord();
@@ -74,15 +74,15 @@ public class RandomPlayer {
 	 * @param piece The square to double jump from.
 	 * @return The coordinates array, same as the above move method.
 	 */
-	public int[] doubleJump(Checkers game, Square piece) {
+	public int[] doubleJump(Position p, Square piece) {
 		// Make a random, legal capture.
 		Random r = new Random();
 		int offset_v, offset_h;
 		do {
 			offset_v = (r.nextInt(2) == 0) ? 2 : -2;
 			offset_h = (r.nextInt(2) == 0) ? 2 : -2;
-		} while (!game.move(piece.getVerticalCoord(), piece.getHorizontalCoord(), piece.getVerticalCoord() + offset_v, 
-						    piece.getHorizontalCoord() + offset_h));
+		} while (p.move(piece.getVerticalCoord(), piece.getHorizontalCoord(), piece.getVerticalCoord() + offset_v, 
+						    piece.getHorizontalCoord() + offset_h, true) != null);
 
 		int[] coordinates = new int[4];
 		coordinates[0] = piece.getVerticalCoord();
