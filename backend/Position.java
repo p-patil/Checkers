@@ -1,6 +1,7 @@
 import java.util.HashSet;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Random;
 import java.io.Serializable;
 
 /**
@@ -109,7 +110,7 @@ public class Position implements Serializable {
 			}
 		}
 		this.turn = turn;
-		this.state = isGameOver(board, turn);
+		this.state = isGameOver(board, this.board.length, turn);
 		if (this.state != 0) {
 			this.successors = null;
 			this.successorScores = null;
@@ -143,6 +144,55 @@ public class Position implements Serializable {
 	}
 
 	/**
+	 * Initializes a random position using the Random object r. The initialized position is not guaranteed to be reachable through legal play.
+	 * @param r The Random object used to generate the board.
+	 * @param board_dim Dimensions of the board.
+	 */
+	public Position(Random r, int board_dim) {
+		this.board = new Square[board_dim][board_dim];
+		this.redCount = 0;
+		this.blackCount = 0;
+		int max_pieces = (board_dim / 2 - 1) * (board_dim / 2), val;
+		for (int i = 0; i < board.length; i++) {
+			for (int j = 0; j < board[i].length; j++) {
+				if ((i + j) % 2 == 1) {
+					val = r.nextInt(3);
+					if (val == 0) {
+						if (this.redCount + 1 <= max_pieces) {
+							if (r.nextInt(2) == 0) {
+								this.board[i][j] = new Square(Square.RED, i, j);
+							} else {
+								this.board[i][j] = new Square(Square.RED_KING, i, j);
+							}
+						}
+					} else if (val == 1) {
+						if (this.blackCount + 1 <= max_pieces) {
+							if (r.nextInt(2) == 0) {
+								this.board[i][j] = new Square(Square.BLACK, i, j);
+							} else {
+								this.board[i][j] = new Square(Square.BLACK_KING, i, j);
+							}							
+						}
+					} else {
+						this.board[i][j] = new Square(Square.EMPTY, i, j);						
+					}
+				} else {
+					this.board[i][j] = new Square(Square.EMPTY, i, j);
+				}
+			}
+		}
+		this.turn = (r.nextInt(2) == 0) ? Square.RED : Square.BLACK;
+		this.state = isGameOver(this.board, this.board.length, this.turn);
+		if (this.state != 0) {
+			this.successors = null;
+			this.successorScores = null;
+		} else {
+			this.successors = new HashMap<>();
+			this.successorScores = new HashMap<>();
+		}
+	}
+
+	/**
 	 * Initializes this Position object's successors.
 	 */
 	public void generateSuccessors() {
@@ -156,7 +206,7 @@ public class Position implements Serializable {
 		for (int i = 0; i < this.board.length; i++) {
 			for (int j = 0; j < this.board[i].length; j++) {
 				if ((this.board[i][j].isRed() && this.turn == Square.RED) || (this.board[i][j].isBlack() && this.turn == Square.BLACK)) {
-					for (Object[] p : generateAllMoves(this.board, i, j, this.turn)) {
+					for (Object[] p : generateAllMoves(this.board, this.board.length, i, j, this.turn)) {
 						this.successors.put((Position) p[0], (int[]) p[1]);
 					}
 				}
@@ -177,14 +227,14 @@ public class Position implements Serializable {
 	 * @param turn Whose turn it is.
 	 * @return Returns the outcome of the game, or if the game is still going. 
 	 */
-	public static int isGameOver(Square[][] board, int turn) {
+	public static int isGameOver(Square[][] board, int board_size, int turn) {
 		int redCount = 0, blackCount = 0;
 
 		// Check if either player can make any legal moves.
 		boolean redHasValidMoves = false;
 		boolean blackHasValidMoves = false;
-		for (int i = 0; i < Checkers.BOARD_SIZE; i++) {
-			for (int j = 0; j < Checkers.BOARD_SIZE; j++) {
+		for (int i = 0; i < board_size; i++) {
+			for (int j = 0; j < board_size; j++) {
 				if (board[i][j].isRed()) {
 					redCount++;
 				} else if (board[i][j].isBlack()) {
@@ -194,12 +244,12 @@ public class Position implements Serializable {
 				if (!board[i][j].isEmpty()) { // Skip empty squares, which trivially have no valid moves.
 					// Check if the piece on square [i, j] can make a valid move.
 					if (!redHasValidMoves && board[i][j].isRed()) {
-						if (numValidMoves(board, i, j, Square.RED) != 0) {
+						if (numValidMoves(board, board_size, i, j, Square.RED) != 0) {
 							redHasValidMoves = true;
 						}
 					}
 					if (!blackHasValidMoves && board[i][j].isBlack()) {
-						if (numValidMoves(board, i, j, Square.BLACK) != 0) {
+						if (numValidMoves(board, board_size, i, j, Square.BLACK) != 0) {
 							blackHasValidMoves = true;
 						}
 					}
@@ -248,6 +298,60 @@ public class Position implements Serializable {
 
 		return evaluationFunction_piecesDifference(turn);
 	}
+
+	// Evaluation functions below this line.
+
+	/**
+	 * Simple evaluation function based on number of pieces still standing.
+	 * @param turn Whose turn it is.
+	 */
+	private int evaluationFunction_numPieces(int turn) {
+		int val = 0;
+		for (int i = 0; i < this.board.length; i++) {
+			for (int j = 0; j < this.board[i].length; j++) {
+				if (!this.board[i][j].isEmpty()) {
+					if ((this.board[i][j].isRed() && turn == Square.RED) || (this.board[i][j].isBlack() && turn == Square.BLACK)) {
+						if (this.board[i][j].isKing()) {
+							val += 2; // Two points for kings.
+						} else {
+							val++; // One point for normal pieces.
+						}
+					}
+				}
+			}
+		}
+		return val;
+	}
+
+	/**
+	 * Simple evaluation function that returns the difference in number of friendly and enemy pieces.
+	 * @param turn Whose turn it is.
+	 */
+	private int evaluationFunction_piecesDifference(int turn) {
+		int val = 0;
+		for (int i = 0; i < this.board.length; i++) {
+			for (int j = 0; j < this.board[i].length; j++) {
+				if (!this.board[i][j].isEmpty()) {
+					if ((this.board[i][j].isRed() && turn == Square.RED) || (this.board[i][j].isBlack() && turn == Square.BLACK)) {
+						if (this.board[i][j].isKing()) {
+							val += 2; // Two points for kings.
+						} else {
+							val++; // One point for normal pieces.
+						}
+					} else if ((this.board[i][j].isRed() && turn == Square.BLACK) || (this.board[i][j].isBlack() && turn == Square.RED)) {
+						if (this.board[i][j].isKing()) {
+							val -= 2;
+						} else {
+							val--;
+						}
+					}
+				}
+			}
+		}
+		return val;
+	}
+
+	// End evaluation functions.
 
 	/**
 	 * Returns the position which characterizes the board after the given piece has moved from the initial square to the final square, assuming 
@@ -308,8 +412,8 @@ public class Position implements Serializable {
 			nextBoard[i_new][j_new].makeKing();
 		}
 
-		if (doubleJump && (numForwardCaptures(nextBoard, i_new, j_new, this.turn) != 0 || 
-						   numForwardCaptures(nextBoard, i_new, j_new, this.turn) != 0)) {
+		if (doubleJump && (numForwardCaptures(nextBoard, Checkers.BOARD_SIZE, i_new, j_new, this.turn) != 0 || 
+						   numForwardCaptures(nextBoard, Checkers.BOARD_SIZE, i_new, j_new, this.turn) != 0)) {
 			return new Position(nextBoard, this.turn); // The move is in the middle of a valid double jump, so preserve the turn.
 		} else {
 			return new Position(nextBoard, ((this.turn == Square.RED) ? Square.BLACK : Square.RED)); // Switch to the other player.
@@ -488,9 +592,11 @@ public class Position implements Serializable {
 	 * @param i The vertical coordinate of the piece.
 	 * @param j The horizontal coordinate of the piece.
 	 * @param turn Those turn it is.
-	 * @return Returns the set of all positions which result from making a single move (including double jumps) from the given square.
+	 * @return Returns the set of all positions which result from making a single move (including double jumps) from the given square. Output
+	 * 		   is formatted as a set of two-element Object arrays; first element of the array is the new position, and the second is a 
+	 * 		   coordinate array representing the move to get to the position.
 	 */
-	private HashSet<Object[]> generateAllMoves(Square[][] board, int i, int j, int turn) {
+	private static HashSet<Object[]> generateAllMoves(Square[][] board, int board_size, int i, int j, int turn) {
 		HashSet<Object[]> moves = new HashSet<>();
 		if (board[i][j].isEmpty()) {
 			return moves;
@@ -514,7 +620,7 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 				}
-				if (j + 1 < Checkers.BOARD_SIZE && board[i - 1][j + 1].isEmpty()) {
+				if (j + 1 < board_size && board[i - 1][j + 1].isEmpty()) {
 					Square[][] tempBoard = deepSquareCopy(board);
 					tempBoard[i - 1][j + 1] = new Square(tempBoard[i][j]);
 					if (i - 1 == 0) {
@@ -544,11 +650,11 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, i - 2, j - 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, board_size, i - 2, j - 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isBlack()) {
+				if (j + 2 < board_size && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isBlack()) {
 					Square[][] tempBoard = deepSquareCopy(board);
 					tempBoard[i - 2][j + 2] = new Square(tempBoard[i][j]);
 					if (i - 2 == 0) {
@@ -561,7 +667,7 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, i - 2, j + 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, board_size, i - 2, j + 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
@@ -569,7 +675,7 @@ public class Position implements Serializable {
 
 			// Check for backward moves and captures.
 			if (board[i][j].isKing()) {
-				if (i + 1 < Checkers.BOARD_SIZE) {
+				if (i + 1 < board_size) {
 					if (j - 1 >= 0 && board[i + 1][j - 1].isEmpty()) {
 						Square[][] tempBoard = deepSquareCopy(board);
 						tempBoard[i + 1][j - 1] = new Square(tempBoard[i][j]);
@@ -580,7 +686,7 @@ public class Position implements Serializable {
 						moves.add(move);
 
 					}
-					if (j + 1 < Checkers.BOARD_SIZE && board[i + 1][j + 1].isEmpty()) {
+					if (j + 1 < board_size && board[i + 1][j + 1].isEmpty()) {
 						Square[][] tempBoard = deepSquareCopy(board);
 						tempBoard[i + 1][j + 1] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
@@ -591,7 +697,7 @@ public class Position implements Serializable {
 
 					}
 				}
-				if (i + 2 < Checkers.BOARD_SIZE) {
+				if (i + 2 < board_size) {
 					if (j - 2 >= 0 && board[i + 2][j - 2].isEmpty() && board[i + 1][j - 1].isBlack()) {
 						Square[][] tempBoard = deepSquareCopy(board);
 						tempBoard[i + 2][j - 2] = new Square(tempBoard[i][j]);
@@ -602,11 +708,11 @@ public class Position implements Serializable {
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
-						for (Object[] double_jump_move  : generateAllMovesDoubleJump(tempBoard, i + 2, j - 2, parentMove, turn)) {
+						for (Object[] double_jump_move  : generateAllMovesDoubleJump(tempBoard, board_size, i + 2, j - 2, parentMove, turn)) {
 							moves.add(double_jump_move);
 						}
 					}
-					if (j + 2 < Checkers.BOARD_SIZE && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isBlack()) {
+					if (j + 2 < board_size && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isBlack()) {
 						Square[][] tempBoard = deepSquareCopy(board);
 						tempBoard[i + 2][j + 2] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
@@ -616,7 +722,7 @@ public class Position implements Serializable {
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
-						for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, i + 2, j + 2, parentMove, turn)) {
+						for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, board_size, i + 2, j + 2, parentMove, turn)) {
 							moves.add(double_jump_move);
 						}
 					}
@@ -624,11 +730,11 @@ public class Position implements Serializable {
 			}
 		} else {
 			// Check for forward moves.
-			if (i + 1 < Checkers.BOARD_SIZE) {
+			if (i + 1 < board_size) {
 				if (j - 1 >= 0 && board[i + 1][j - 1].isEmpty()) {
 					Square[][] tempBoard = deepSquareCopy(board);
 					tempBoard[i + 1][j - 1] = new Square(tempBoard[i][j]);
-					if (i + 1 == Checkers.BOARD_SIZE - 1) {
+					if (i + 1 == board_size - 1) {
 						tempBoard[i + 1][j - 1].makeKing();
 					}
 					tempBoard[i][j].setEmpty();
@@ -637,10 +743,10 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 				}
-				if (j + 1 < Checkers.BOARD_SIZE && board[i + 1][j + 1].isEmpty()) {
+				if (j + 1 < board_size && board[i + 1][j + 1].isEmpty()) {
 					Square[][] tempBoard = deepSquareCopy(board);
 					tempBoard[i + 1][j + 1] = new Square(tempBoard[i][j]);
-					if (i + 1 == Checkers.BOARD_SIZE - 1) {
+					if (i + 1 == board_size - 1) {
 						tempBoard[i + 1][j + 1] = new Square(tempBoard[i][j]);
 					}
 					tempBoard[i][j].setEmpty();
@@ -652,11 +758,11 @@ public class Position implements Serializable {
 			}
 			
 			// Check for forward captures.
-			if (i + 2 < Checkers.BOARD_SIZE) {
+			if (i + 2 < board_size) {
 				if (j - 2 >= 0 && board[i + 2][j - 2].isEmpty() && board[i + 1][j - 1].isRed()) {
 					Square[][] tempBoard = deepSquareCopy(board);
 					tempBoard[i + 2][j - 2] = new Square(tempBoard[i][j]);
-					if (i + 2 == Checkers.BOARD_SIZE - 1) {
+					if (i + 2 == board_size - 1) {
 						tempBoard[i + 2][j - 2].makeKing();
 					}
 					tempBoard[i][j].setEmpty();
@@ -666,14 +772,14 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, i + 2, j - 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, board_size, i + 2, j - 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isRed()) {
+				if (j + 2 < board_size && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isRed()) {
 					Square[][] tempBoard = deepSquareCopy(board);
 					tempBoard[i + 2][j + 2] = new Square(tempBoard[i][j]);
-					if (i + 2 == Checkers.BOARD_SIZE - 1) {
+					if (i + 2 == board_size - 1) {
 						tempBoard[i + 2][j + 2].makeKing();						
 					}
 					tempBoard[i][j].setEmpty();
@@ -683,7 +789,7 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, i + 2, j + 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, board_size, i + 2, j + 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
@@ -702,7 +808,7 @@ public class Position implements Serializable {
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 					}
-					if (j + 1 < Checkers.BOARD_SIZE && board[i - 1][j + 1].isEmpty()) {
+					if (j + 1 < board_size && board[i - 1][j + 1].isEmpty()) {
 						Square[][] tempBoard = deepSquareCopy(board);
 						tempBoard[i - 1][j + 1] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
@@ -724,11 +830,11 @@ public class Position implements Serializable {
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
-						for (Object[] double_jump_move  : generateAllMovesDoubleJump(tempBoard, i - 2, j - 2, parentMove, turn)) {
+						for (Object[] double_jump_move  : generateAllMovesDoubleJump(tempBoard, board_size, i - 2, j - 2, parentMove, turn)) {
 							moves.add(double_jump_move);
 						}
 					}
-					if (j + 2 < Checkers.BOARD_SIZE && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isRed()) {
+					if (j + 2 < board_size && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isRed()) {
 						Square[][] tempBoard = deepSquareCopy(board);
 						tempBoard[i - 2][j + 2] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
@@ -738,7 +844,7 @@ public class Position implements Serializable {
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
-						for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, i - 2, j + 2, parentMove, turn)) {
+						for (Object[] double_jump_move : generateAllMovesDoubleJump(tempBoard, board_size, i - 2, j + 2, parentMove, turn)) {
 							moves.add(double_jump_move);
 						}
 					}
@@ -757,11 +863,11 @@ public class Position implements Serializable {
 	 * @param j The horizontal coordinate of the piece jumping.
 	 * @param currParentMove Stores the double jump path to the present position.
 	 * @param turn Whose turn it is.
-	 * @return Returns all boards resulting from the ensuing double jump sequence.
+	 * @return Returns all boards resulting from the ensuing double jump sequence. Output follows same format as the output of generateAllMoves.
 	 */
-	private HashSet<Object[]> generateAllMovesDoubleJump(Square[][] board, int i, int j, int[] currParentMove, int turn) {
+	private static HashSet<Object[]> generateAllMovesDoubleJump(Square[][] board, int board_size, int i, int j, int[] currParentMove, int turn) {
 		HashSet<Object[]> moves = new HashSet<>();
-		if (numForwardCaptures(board, i, j, turn) == 0 && numBackwardCaptures(board, i, j, turn, true) == 0) {
+		if (numForwardCaptures(board, board_size, i, j, turn) == 0 && numBackwardCaptures(board, board_size, i, j, turn, true) == 0) {
 			return moves;
 		}
 
@@ -789,11 +895,11 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i - 2, j - 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i - 2, j - 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isBlack()) {
+				if (j + 2 < board_size && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isBlack()) {
 					nextBoard = deepSquareCopy(board);
 					nextBoard[i - 2][j + 2] = new Square(nextBoard[i][j]);
 					if (i - 2 == 0) {
@@ -810,12 +916,12 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i - 2, j + 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i - 2, j + 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
 			}
-			if (i + 2 < Checkers.BOARD_SIZE) {
+			if (i + 2 < board_size) {
 				if (j - 2 >= 0 && board[i + 2][j - 2].isEmpty() && board[i + 1][j - 1].isBlack()) {
 					nextBoard = deepSquareCopy(board);
 					nextBoard[i + 2][j - 2] = new Square(nextBoard[i][j]);
@@ -830,11 +936,11 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i + 2, j - 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i + 2, j - 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}	
 				}
-				if (j + 2 < Checkers.BOARD_SIZE && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isBlack()) {
+				if (j + 2 < board_size && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isBlack()) {
 					nextBoard = deepSquareCopy(board);
 					nextBoard[i + 2][j + 2] = new Square(nextBoard[i][j]);
 					nextBoard[i][j].setEmpty();
@@ -848,7 +954,7 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i + 2, j + 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i + 2, j + 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
@@ -870,11 +976,11 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i - 2, j - 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i - 2, j - 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isRed()) {
+				if (j + 2 < board_size && board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isRed()) {
 					nextBoard = deepSquareCopy(board);
 					nextBoard[i - 2][j + 2] = new Square(nextBoard[i][j]);
 					nextBoard[i][j].setEmpty();
@@ -888,16 +994,16 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i - 2, j + 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i - 2, j + 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
 			}
-			if (i + 2 < Checkers.BOARD_SIZE) {
+			if (i + 2 < board_size) {
 				if (j - 2 >= 0 && board[i + 2][j - 2].isEmpty() && board[i + 1][j - 1].isRed()) {
 					nextBoard = deepSquareCopy(board);
 					nextBoard[i + 2][j - 2] = new Square(nextBoard[i][j]);
-					if (i + 2 == Checkers.BOARD_SIZE - 1) {
+					if (i + 2 == board_size - 1) {
 						nextBoard[i + 2][j - 2].makeKing();						
 					}
 					nextBoard[i][j].setEmpty();
@@ -911,14 +1017,14 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i + 2, j - 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i + 2, j - 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}	
 				}
-				if (j + 2 < Checkers.BOARD_SIZE && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isRed()) {
+				if (j + 2 < board_size && board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isRed()) {
 					nextBoard = deepSquareCopy(board);
 					nextBoard[i + 2][j + 2] = new Square(nextBoard[i][j]);
-					if (i + 2 == Checkers.BOARD_SIZE - 1) {
+					if (i + 2 == board_size - 1) {
 						nextBoard[i + 2][j + 2].makeKing();						
 					}
 					nextBoard[i][j].setEmpty();
@@ -932,7 +1038,7 @@ public class Position implements Serializable {
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
-					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, i + 2, j + 2, parentMove, turn)) {
+					for (Object[] double_jump_move : generateAllMovesDoubleJump(nextBoard, board_size, i + 2, j + 2, parentMove, turn)) {
 						moves.add(double_jump_move);
 					}
 				}
@@ -949,7 +1055,7 @@ public class Position implements Serializable {
  	 * @param turn Whose turn to assume it is when searching for valid moves.
  	 * @return Whether or not the piece on square [i, j] can make any valid moves.
  	 */
-	public static int numValidMoves(Square[][] board, int i, int j, int turn) {
+	public static int numValidMoves(Square[][] board, int board_size, int i, int j, int turn) {
 		if ((board[i][j].isRed() && turn != Square.RED) || (board[i][j].isBlack() && turn != Square.BLACK) || board[i][j].isEmpty()) {
 			return 0; // The player whose turn it is must match the piece on the given square.
 		}
@@ -964,7 +1070,7 @@ public class Position implements Serializable {
 						count++; // Can move diagonally up and right.
 					}
 				}
-				if (j + 1 < Checkers.BOARD_SIZE) {
+				if (j + 1 < board_size) {
 					if (board[i - 1][j + 1].isEmpty()) {
 						count++; // Can move diagonally up and left.
 					}
@@ -972,17 +1078,17 @@ public class Position implements Serializable {
 			}
 
 			// Check if capture is possible.
-			count += numForwardCaptures(board, i, j, turn);
+			count += numForwardCaptures(board, board_size, i, j, turn);
 
 			// If the piece is a king, check squares behind it.
 			if (board[i][j].isKing()) {
-				if (i + 1 < Checkers.BOARD_SIZE) {
+				if (i + 1 < board_size) {
 					if (j - 1 >= 0) {
 						if (board[i + 1][j - 1].isEmpty()) {
 							count++; // Can move diagonally down and left.
 						}
 					}
-					if (j + 1 < Checkers.BOARD_SIZE) {
+					if (j + 1 < board_size) {
 						if (board[i + 1][j + 1].isEmpty()) {
 							count++; // Can move diagonally down and right.
 						}
@@ -990,17 +1096,17 @@ public class Position implements Serializable {
 				}
 
 				// Check for backwards captures.
-				count += numBackwardCaptures(board, i, j, turn, false);
+				count += numBackwardCaptures(board, board_size, i, j, turn, false);
 			}
 		} else {
 			// Check the immediate two squares forward.
-			if (i + 1 < Checkers.BOARD_SIZE) {
+			if (i + 1 < board_size) {
 				if (j - 1 >= 0) {
 					if (board[i + 1][j - 1].isEmpty()) {
 						count++; // Can move diagonally up and right
 					}
 				}
-				if (j + 1 < Checkers.BOARD_SIZE) {
+				if (j + 1 < board_size) {
 					if (board[i + 1][j + 1].isEmpty()) {
 						count++; // Can move diagonally up and left
 					}
@@ -1008,7 +1114,7 @@ public class Position implements Serializable {
 			}
 
 			// Check if capture is possible.
-			count += numForwardCaptures(board, i, j, turn);
+			count += numForwardCaptures(board, board_size, i, j, turn);
 
 			// If the piece is a king, check squares behind it.
 			if (board[i][j].isKing()) {
@@ -1018,7 +1124,7 @@ public class Position implements Serializable {
 							count++; // Can move diagonally down and left.
 						}
 					}
-					if (j + 1 < Checkers.BOARD_SIZE) {
+					if (j + 1 < board_size) {
 						if (board[i - 1][j + 1].isEmpty()) {
 							count++; // Can move diagonally down and right.
 						}
@@ -1026,7 +1132,7 @@ public class Position implements Serializable {
 				}
 
 				// Check for backwards captures.
-				count += numBackwardCaptures(board, i, j, turn, false);
+				count += numBackwardCaptures(board, board_size, i, j, turn, false);
 			}
 		}
 
@@ -1039,7 +1145,7 @@ public class Position implements Serializable {
 	 * @param j The horizontal coordinate of the square.
 	 * @param turn Whose turn to assume it is when searching for valid moves.
 	 */
-	public static int numForwardCaptures(Square[][] board, int i, int j, int turn) {
+	public static int numForwardCaptures(Square[][] board, int board_size,int i, int j, int turn) {
 		int count = 0;
 		if (turn == Square.RED) {
 			if (i - 2 >= 0) {
@@ -1048,20 +1154,20 @@ public class Position implements Serializable {
 						count++; // Can capture diagonally up and left.
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE) {
+				if (j + 2 < board_size) {
 					if (board[i - 2][j + 2].isEmpty() && !board[i - 1][j + 1].isRed() && !board[i - 1][j + 1].isEmpty()) {
 						count++; // Can capture digaonally up and right.
 					}
 				}
 			}
 		} else {
-			if (i + 2 < Checkers.BOARD_SIZE) {
+			if (i + 2 < board_size) {
 				if (j - 2 >= 0) {
 					if (board[i + 2][j - 2].isEmpty() && !board[i + 1][j - 1].isBlack() && !board[i + 1][j - 1].isEmpty()) {
 						count++; // Can capture diagonally up and left.
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE) {
+				if (j + 2 < board_size) {
 					if (board[i + 2][j + 2].isEmpty() && !board[i + 1][j + 1].isBlack() && !board[i + 1][j + 1].isEmpty()) {
 						count++; // Can capture digaonally up and right.
 					}
@@ -1079,7 +1185,7 @@ public class Position implements Serializable {
 	 * @param turn Whose turn to assume it is when searching for valid moves.
 	 * @param isDoubleJump Whether or not the move is in the middle of a capture sequence.
 	 */
-	public static int numBackwardCaptures(Square[][] board, int i, int j, int turn, boolean isDoubleJump) {
+	public static int numBackwardCaptures(Square[][] board, int board_size, int i, int j, int turn, boolean isDoubleJump) {
 		if (!board[i][j].isKing() && !isDoubleJump) {
 			return 0; // Must be a king to capture backwards.
 		}
@@ -1087,13 +1193,13 @@ public class Position implements Serializable {
 		int count = 0;
 
 		if (turn == Square.RED) {
-			if (i + 2 < Checkers.BOARD_SIZE) {
+			if (i + 2 < board_size) {
 				if (j - 2 >= 0) {
 					if (board[i + 2][j - 2].isEmpty() && board[i + 1][j - 1].isBlack()) {
 						count++; // Can capture diagonally down and left.
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE) {
+				if (j + 2 < board_size) {
 					if (board[i + 2][j + 2].isEmpty() && board[i + 1][j + 1].isBlack()) {
 						count++; // Can capture diagonally down and right.
 					}
@@ -1106,7 +1212,7 @@ public class Position implements Serializable {
 						count++; // Can capture diagonally down and left.
 					}
 				}
-				if (j + 2 < Checkers.BOARD_SIZE) {
+				if (j + 2 < board_size) {
 					if (board[i - 2][j + 2].isEmpty() && board[i - 1][j + 1].isRed()) {
 						count++; // Can capture diagonally down and right.
 					}
@@ -1131,55 +1237,5 @@ public class Position implements Serializable {
 		}
 
 		return temp;
-	}
-
-	/**
-	 * Simple evaluation function based on number of pieces still standing.
-	 * @param turn Whose turn it is.
-	 */
-	private int evaluationFunction_numPieces(int turn) {
-		int val = 0;
-		for (int i = 0; i < this.board.length; i++) {
-			for (int j = 0; j < this.board[i].length; j++) {
-				if (!this.board[i][j].isEmpty()) {
-					if ((this.board[i][j].isRed() && turn == Square.RED) || (this.board[i][j].isBlack() && turn == Square.BLACK)) {
-						if (this.board[i][j].isKing()) {
-							val += 2; // Two points for kings.
-						} else {
-							val++; // One point for normal pieces.
-						}
-					}
-				}
-			}
-		}
-		return val;
-	}
-
-	/**
-	 * Simple evaluation function that returns the difference in number of friendly and enemy pieces.
-	 * @param turn Whose turn it is.
-	 */
-	private int evaluationFunction_piecesDifference(int turn) {
-		int val = 0;
-		for (int i = 0; i < this.board.length; i++) {
-			for (int j = 0; j < this.board[i].length; j++) {
-				if (!this.board[i][j].isEmpty()) {
-					if ((this.board[i][j].isRed() && turn == Square.RED) || (this.board[i][j].isBlack() && turn == Square.BLACK)) {
-						if (this.board[i][j].isKing()) {
-							val += 2; // Two points for kings.
-						} else {
-							val++; // One point for normal pieces.
-						}
-					} else if ((this.board[i][j].isRed() && turn == Square.BLACK) || (this.board[i][j].isBlack() && turn == Square.RED)) {
-						if (this.board[i][j].isKing()) {
-							val -= 2;
-						} else {
-							val--;
-						}
-					}
-				}
-			}
-		}
-		return val;
 	}
 }

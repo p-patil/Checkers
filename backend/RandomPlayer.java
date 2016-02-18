@@ -45,7 +45,7 @@ public class RandomPlayer {
 		Random r = new Random();
 		do {
 			piece = pieces[r.nextInt(pieces.length)];
-		} while (Position.numValidMoves(p.board, piece.getVerticalCoord(), piece.getHorizontalCoord(), p.turn) == 0);
+		} while (Position.numValidMoves(p.board, Checkers.BOARD_SIZE, piece.getVerticalCoord(), piece.getHorizontalCoord(), p.turn) == 0);
 
 		// Make a random, legal move.
 		int offset_v, offset_h;

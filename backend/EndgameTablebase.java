@@ -178,7 +178,7 @@ public class EndgameTablebase implements Serializable {
 					for (int i = 0; i < p.board.length; i++) {
 						for (int j = 0; j < p.board[i].length; j++) {
 							if (!p.board[i][j].isEmpty()) {
-								totalValidMoves += Position.numValidMoves(p.board, i, j, p.turn);
+								totalValidMoves += Position.numValidMoves(p.board, Checkers.BOARD_SIZE, i, j, p.turn);
 							}
 						}
 					}

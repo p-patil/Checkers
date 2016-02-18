@@ -24,6 +24,15 @@ public class Checkers implements Serializable {
 	}
 
 	/**
+	 * Constructor for starting a game at a given position.
+	 * @param p The starting position.
+	 */
+	public Checkers(Position p) {
+		this.currentPosition = p;
+		this.drawMoveCount = 0;
+	}
+
+	/**
 	 * Begins an interactive game of Checkers that can be played against a computer player.
 	 */
 	public static void consolePlayAI(boolean useTablebases) {
@@ -93,10 +102,10 @@ public class Checkers implements Serializable {
 
 				// If the move is a capture, check capture sequences.
 				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
-					while (Position.numForwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn()) != 0 || 
-						   Position.numBackwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn(), true) != 0) {
+					game.currentPosition.turn = (game.turn() == Square.RED) ? Square.BLACK : Square.RED;
+					while (Position.numForwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn()) != 0 || 
+						   Position.numBackwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn(), true) != 0) {
 
-						i++;
 						System.out.println("Board:");
 						System.out.println(game.currentPosition);
 
@@ -134,7 +143,7 @@ public class Checkers implements Serializable {
 							
 								// Check if the move is valid.
 								if (!game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3], true)) {
-									System.out.print("Illegal move. Please enter a valid move: ");
+									System.out.print("Illegal move. Please enter a valid destination square: ");
 									line = reader.nextLine();
 									while (line.toLowerCase().equals("help")) {
 										printHelpString();
@@ -156,16 +165,26 @@ public class Checkers implements Serializable {
 			} else { // Player will move.
 				coordinates = player.move(game.currentPosition); // Player makes a move.
 				game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3], false);
-
-				// If the move was a capture, check for double jumps.
-				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
-					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
-									   ", " + coordinates[3] + "), captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
-									   ((coordinates[1] + coordinates[3]) / 2) + ").");
+				String printString;
+				if (coordinates.length > 4) {
+					printString = "Opponent double jumped";
 				} else {
-					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
-						   			   ", " + coordinates[3] + ").");
+					printString = "Opponent's turn";
 				}
+
+				printString += " - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[coordinates.length - 2] + ", " + 
+							   coordinates[coordinates.length - 1] + ")";
+				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
+					printString += ", captured on " + "(" + ((coordinates[0] + coordinates[2]) / 2) + ", " + ((coordinates[1] + coordinates[3]) / 2) + ")";
+					if (coordinates.length > 4) {
+						for (int j = 4; j < coordinates.length; j += 4) {
+							game.move(coordinates[j], coordinates[j + 1], coordinates[j + 2], coordinates[j + 3], true);
+							printString += ", (" + coordinates[j] + ", " + coordinates[j + 1] + ")";
+						}
+					}
+				}
+
+				System.out.println(printString + ".");
 			}
 		}
 
@@ -245,8 +264,8 @@ public class Checkers implements Serializable {
 
 				// If the move is a capture, check capture sequences.
 				if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
-					while (Position.numForwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn()) != 0 || 
-						   Position.numBackwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn(), true) != 0) {
+					while (Position.numForwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn()) != 0 || 
+						   Position.numBackwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn(), true) != 0) {
 
 						i++;
 						System.out.println("Board:");
@@ -314,8 +333,8 @@ public class Checkers implements Serializable {
 					System.out.println("Opponent's turn - moved from (" + coordinates[0] + ", " + coordinates[1] + ") to (" + coordinates[2] + 
 									   ", " + coordinates[3] + "), captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
 									   ((coordinates[1] + coordinates[3]) / 2) + ").");
-					while (Position.numForwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn()) != 0 || 
-						   Position.numBackwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn(), true) != 0) {
+					while (Position.numForwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn()) != 0 || 
+						   Position.numBackwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn(), true) != 0) {
 						if (r.nextInt(2) == 0) { // Continue the capture sequence with probability 0.5
 							break;
 						}
@@ -392,8 +411,8 @@ public class Checkers implements Serializable {
 
 			// If the move is a capture, check capture sequences.
 			if (Math.abs(coordinates[2] - coordinates[0]) == 2 && Math.abs(coordinates[3] - coordinates[1]) == 2) {
-				while (Position.numForwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn()) != 0 || 
-					   Position.numBackwardCaptures(game.currentPosition.board, coordinates[2], coordinates[3], game.turn(), true) != 0) {
+				while (Position.numForwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn()) != 0 || 
+					   Position.numBackwardCaptures(game.currentPosition.board, BOARD_SIZE, coordinates[2], coordinates[3], game.turn(), true) != 0) {
 
 					i++;
 					System.out.println("Board:");
