@@ -2,6 +2,7 @@ import java.util.HashSet;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.ArrayList;
 import java.io.Serializable;
 
 /**
@@ -39,7 +40,7 @@ public class Position implements Serializable {
 		}
 	}
 
-	public HashMap<Position, int[]> successors; // The successor positions to this position, defined as all positions one forward move away from this position.
+	public HashMap<Position, ArrayList<Integer>> successors; // The successor positions to this position, defined as all positions one forward move away from this position.
 	public HashMap<Position, Integer> successorScores; // Maps successors to score values, which is its minimum distance to a winning state. Doesn't contain nodes
 													   // with no path to any winning state.
 	public final Square[][] board; // The board configuration represented by this position object.
@@ -207,7 +208,7 @@ public class Position implements Serializable {
 			for (int j = 0; j < this.board[i].length; j++) {
 				if ((this.board[i][j].isRed() && this.turn == Square.RED) || (this.board[i][j].isBlack() && this.turn == Square.BLACK)) {
 					for (Object[] p : generateAllMoves(this.board, this.board.length, i, j, this.turn)) {
-						this.successors.put((Position) p[0], (int[]) p[1]);
+						this.successors.put((Position) p[0], (ArrayList<Integer>) p[1]);
 					}
 				}
 			}
@@ -283,79 +284,11 @@ public class Position implements Serializable {
 		}
 	}
 
-	/**
-	 * The static position evaluation function used in the minimax algorithm.
-	 * @param position The position to evaluate.
-	 * @param turn Whose turn to evaluate on.
-	 * @return The evaluation value.
-	 */
-	public int evaluationFunction(int turn) {
-		if ((turn == Square.RED && this.state == 1) || (turn == Square.BLACK && this.state == -1)) {
-			return Integer.MAX_VALUE; // If the position is won, return infinity.
-		} else if ((turn == Square.RED && this.state == -1) || (turn == Square.BLACK && this.state == 1)) {
-			return Integer.MIN_VALUE; // If the position is lost, return minus infinity.
-		}
-
-		return evaluationFunction_piecesDifference(turn);
-	}
-
-	// Evaluation functions below this line.
-
-	/**
-	 * Simple evaluation function based on number of pieces still standing.
-	 * @param turn Whose turn it is.
-	 */
-	private int evaluationFunction_numPieces(int turn) {
-		int val = 0;
-		for (int i = 0; i < this.board.length; i++) {
-			for (int j = 0; j < this.board[i].length; j++) {
-				if (!this.board[i][j].isEmpty()) {
-					if ((this.board[i][j].isRed() && turn == Square.RED) || (this.board[i][j].isBlack() && turn == Square.BLACK)) {
-						if (this.board[i][j].isKing()) {
-							val += 2; // Two points for kings.
-						} else {
-							val++; // One point for normal pieces.
-						}
-					}
-				}
-			}
-		}
-		return val;
-	}
-
-	/**
-	 * Simple evaluation function that returns the difference in number of friendly and enemy pieces.
-	 * @param turn Whose turn it is.
-	 */
-	private int evaluationFunction_piecesDifference(int turn) {
-		int val = 0;
-		for (int i = 0; i < this.board.length; i++) {
-			for (int j = 0; j < this.board[i].length; j++) {
-				if (!this.board[i][j].isEmpty()) {
-					if ((this.board[i][j].isRed() && turn == Square.RED) || (this.board[i][j].isBlack() && turn == Square.BLACK)) {
-						if (this.board[i][j].isKing()) {
-							val += 2; // Two points for kings.
-						} else {
-							val++; // One point for normal pieces.
-						}
-					} else if ((this.board[i][j].isRed() && turn == Square.BLACK) || (this.board[i][j].isBlack() && turn == Square.RED)) {
-						if (this.board[i][j].isKing()) {
-							val -= 2;
-						} else {
-							val--;
-						}
-					}
-				}
-			}
-		}
-		return val;
-	}
-
 	// End evaluation functions.
 
 	/**
-	 * Returns the position which characterizes the board after the given piece has moved from the initial square to the final square, assuming 
-	 * the move is legal.
+	 * Returns the position which characterizes the board after the given piece has moved from the initial square to the final square, if the move is legal. If the move is in the
+	 * middle of a double jump, preserves the turn, toggling it otherwise.
 	 * @param i_initial The vertical coordinate of the source square.
 	 * @param j_initial The horizontal coordinate of the source square.
 	 * @param i_initial The vertical coordinate of the destination square.
@@ -364,12 +297,12 @@ public class Position implements Serializable {
 	 * @return Returns the next positions if the move is legal, and null otherwise.
 	 */
 	public Position move(int i_initial, int j_initial, int i_new, int j_new, boolean doubleJump) {
-		if (i_initial < 0 || i_initial >= Checkers.BOARD_SIZE || j_initial < 0 || j_initial >= Checkers.BOARD_SIZE || i_new < 0 || i_new >= Checkers.BOARD_SIZE || 
+		if (i_initial < 0 || i_initial >= Checkers.BOARD_SIZE || j_initial < 0 || j_initial >= Checkers.BOARD_SIZE || i_new < 0 || i_new >= Checkers.BOARD_SIZE ||
 			j_new < 0 || j_new >= Checkers.BOARD_SIZE) {
 			return null; // Can't move off the board.
 		} else if (i_new == i_initial || j_new == j_initial) {
 			return null; // Must move to different row and column.
-		} else if ((this.turn == Square.RED && !this.board[i_initial][j_initial].isRed()) || (this.turn == Square.BLACK && !this.board[i_initial][j_initial].isBlack())) { 
+		} else if ((this.turn == Square.RED && !this.board[i_initial][j_initial].isRed()) || (this.turn == Square.BLACK && !this.board[i_initial][j_initial].isBlack())) {
 			return null; // Can't move empty or enemy piece.
 		} else if (!this.board[i_new][j_new].isEmpty()) {
 			return null; // Can't move onto an occupied square.
@@ -412,8 +345,9 @@ public class Position implements Serializable {
 			nextBoard[i_new][j_new].makeKing();
 		}
 
-		if (doubleJump && (numForwardCaptures(nextBoard, Checkers.BOARD_SIZE, i_new, j_new, this.turn) != 0 || 
-						   numForwardCaptures(nextBoard, Checkers.BOARD_SIZE, i_new, j_new, this.turn) != 0)) {
+		// if (doubleJump && (numForwardCaptures(nextBoard, Checkers.BOARD_SIZE, i_new, j_new, this.turn) != 0 || 
+		// 				   numForwardCaptures(nextBoard, Checkers.BOARD_SIZE, i_new, j_new, this.turn) != 0)) {
+		if (doubleJump) {
 			return new Position(nextBoard, this.turn); // The move is in the middle of a valid double jump, so preserve the turn.
 		} else {
 			return new Position(nextBoard, ((this.turn == Square.RED) ? Square.BLACK : Square.RED)); // Switch to the other player.
@@ -616,7 +550,12 @@ public class Position implements Serializable {
 					}
 					tempBoard[i][j].setEmpty();
 					
-					int[] parentMove = {i, j, i - 1, j - 1};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 1);
+					parentMove.add(j - 1);
+					
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 				}
@@ -628,7 +567,12 @@ public class Position implements Serializable {
 					}
 					tempBoard[i][j].setEmpty();
 
-					int[] parentMove = {i, j, i - 1, j + 1};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 1);
+					parentMove.add(j + 1);
+					
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 				}
@@ -646,7 +590,12 @@ public class Position implements Serializable {
 					tempBoard[i][j].setEmpty();
 					tempBoard[i - 1][j - 1].setEmpty();
 					
-					int[] parentMove = {i, j, i - 2, j - 2};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 2);
+					parentMove.add(j - 2);
+
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -663,7 +612,12 @@ public class Position implements Serializable {
 					tempBoard[i][j].setEmpty();
 					tempBoard[i - 1][j + 1].setEmpty();
 
-					int[] parentMove = {i, j, i - 2, j + 2};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 2);
+					parentMove.add(j + 2);
+
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -681,7 +635,12 @@ public class Position implements Serializable {
 						tempBoard[i + 1][j - 1] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
 						
-						int[] parentMove = {i, j, i + 1, j - 1};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i + 1);
+						parentMove.add(j - 1);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
@@ -691,7 +650,12 @@ public class Position implements Serializable {
 						tempBoard[i + 1][j + 1] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
 
-						int[] parentMove = {i, j, i + 1, j + 1};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i + 1);
+						parentMove.add(j + 1);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
@@ -704,7 +668,12 @@ public class Position implements Serializable {
 						tempBoard[i][j].setEmpty();
 						tempBoard[i + 1][j - 1].setEmpty();
 
-						int[] parentMove = {i, j, i + 2, j - 2};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i + 2);
+						parentMove.add(j - 2);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
@@ -718,7 +687,12 @@ public class Position implements Serializable {
 						tempBoard[i][j].setEmpty();
 						tempBoard[i + 1][j + 1].setEmpty();
 
-						int[] parentMove = {i, j, i + 2, j + 2};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i + 2);
+						parentMove.add(j + 2);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
@@ -739,7 +713,12 @@ public class Position implements Serializable {
 					}
 					tempBoard[i][j].setEmpty();
 					
-					int[] parentMove = {i, j, i + 1, j - 1};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 1);
+					parentMove.add(j - 1);
+
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 				}
@@ -751,7 +730,12 @@ public class Position implements Serializable {
 					}
 					tempBoard[i][j].setEmpty();
 
-					int[] parentMove = {i, j, i + 1, j + 1};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 1);
+					parentMove.add(j + 1);
+
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 				}
@@ -768,7 +752,12 @@ public class Position implements Serializable {
 					tempBoard[i][j].setEmpty();
 					tempBoard[i + 1][j - 1].setEmpty();
 					
-					int[] parentMove = {i, j, i + 2, j - 2};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 2);
+					parentMove.add(j - 2);
+
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -785,7 +774,12 @@ public class Position implements Serializable {
 					tempBoard[i][j].setEmpty();
 					tempBoard[i + 1][j + 1].setEmpty();
 
-					int[] parentMove = {i, j, i + 2, j + 2};
+					ArrayList<Integer> parentMove = new ArrayList<>();
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 2);
+					parentMove.add(j + 2);
+
 					Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -804,7 +798,12 @@ public class Position implements Serializable {
 						tempBoard[i - 1][j - 1] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
 						
-						int[] parentMove = {i, j, i - 1, j - 1};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i - 1);
+						parentMove.add(j - 1);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 					}
@@ -813,11 +812,17 @@ public class Position implements Serializable {
 						tempBoard[i - 1][j + 1] = new Square(tempBoard[i][j]);
 						tempBoard[i][j].setEmpty();
 
-						int[] parentMove = {i, j, i - 1, j + 1};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i - 1);
+						parentMove.add(j + 1);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 					}
 				}
+
 				// Captures.
 				if (i - 2 >= 0) {
 					if (j - 2 >= 0 && board[i - 2][j - 2].isEmpty() && board[i - 1][j - 1].isRed()) {
@@ -826,7 +831,12 @@ public class Position implements Serializable {
 						tempBoard[i][j].setEmpty();
 						tempBoard[i - 1][j - 1].setEmpty();
 
-						int[] parentMove = {i, j, i - 2, j - 2};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i - 2);
+						parentMove.add(j - 2);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
@@ -840,7 +850,12 @@ public class Position implements Serializable {
 						tempBoard[i][j].setEmpty();
 						tempBoard[i - 1][j + 1].setEmpty();
 
-						int[] parentMove = {i, j, i - 2, j + 2};
+						ArrayList<Integer> parentMove = new ArrayList<>();
+						parentMove.add(i);
+						parentMove.add(j);
+						parentMove.add(i - 2);
+						parentMove.add(j + 2);
+
 						Object[] move = {(new Position(tempBoard, nextTurn)), parentMove};
 						moves.add(move);
 
@@ -865,7 +880,7 @@ public class Position implements Serializable {
 	 * @param turn Whose turn it is.
 	 * @return Returns all boards resulting from the ensuing double jump sequence. Output follows same format as the output of generateAllMoves.
 	 */
-	private static HashSet<Object[]> generateAllMovesDoubleJump(Square[][] board, int board_size, int i, int j, int[] currParentMove, int turn) {
+	private static HashSet<Object[]> generateAllMovesDoubleJump(Square[][] board, int board_size, int i, int j, ArrayList<Integer> currParentMove, int turn) {
 		HashSet<Object[]> moves = new HashSet<>();
 		if (numForwardCaptures(board, board_size, i, j, turn) == 0 && numBackwardCaptures(board, board_size, i, j, turn, true) == 0) {
 			return moves;
@@ -887,11 +902,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i - 1][j - 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i - 2;
-					parentMove[parentMove.length - 1] = j - 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 2);
+					parentMove.add(j - 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -908,11 +924,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i - 1][j + 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i - 2;
-					parentMove[parentMove.length - 1] = j + 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 2);
+					parentMove.add(j + 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -928,11 +945,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i + 1][j - 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i + 2;
-					parentMove[parentMove.length - 1] = j - 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 2);
+					parentMove.add(j - 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -946,11 +964,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i + 1][j + 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i + 2;
-					parentMove[parentMove.length - 1] = j + 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 2);
+					parentMove.add(j + 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -968,11 +987,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i - 1][j - 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i - 2;
-					parentMove[parentMove.length - 1] = j - 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 2);
+					parentMove.add(j - 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -986,11 +1006,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i - 1][j + 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i - 2;
-					parentMove[parentMove.length - 1] = j + 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i - 2);
+					parentMove.add(j + 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -1009,11 +1030,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i + 1][j - 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i + 2;
-					parentMove[parentMove.length - 1] = j - 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 2);
+					parentMove.add(j - 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 
@@ -1030,11 +1052,12 @@ public class Position implements Serializable {
 					nextBoard[i][j].setEmpty();
 					nextBoard[i + 1][j + 1].setEmpty();
 
-					int[] parentMove = Arrays.copyOf(currParentMove, currParentMove.length + 4);
-					parentMove[parentMove.length - 4] = i;
-					parentMove[parentMove.length - 3] = j;
-					parentMove[parentMove.length - 2] = i + 2;
-					parentMove[parentMove.length - 1] = j + 2;
+					ArrayList<Integer> parentMove = new ArrayList<>(currParentMove);
+					parentMove.add(i);
+					parentMove.add(j);
+					parentMove.add(i + 2);
+					parentMove.add(j + 2);
+
 					Object[] move = {(new Position(nextBoard, nextTurn)), parentMove};
 					moves.add(move);
 

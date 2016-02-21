@@ -4,12 +4,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.ArrayList;
 
 /**
  * Program that plays checkers. Implements a minimax algorithm and uses a generated tablebase when feasible.
  */
 public class CheckersAI {
-	public static final int MAX_DEPTH = 7; // The maximum depth in the game tree that minimax should explore. This is the depth at which 
+	public static final int MAX_DEPTH = 4; // The maximum depth in the game tree that minimax should explore. This is the depth at which 
 										   // static evaluations are performed, instead of going one level deeper.
 
 	private EndgameTablebase tablebase;
@@ -36,14 +37,24 @@ public class CheckersAI {
 	 */
 	public int[] move(Position p) {
 		p.generateSuccessors();
+		int[] ret;
+		ArrayList<Integer> moveList;
 
 		// If possible, use an endgame database.	
 		if (this.tablebase != null && p.redPieceCount() + p.blackPieceCount() <= EndgameTablebase.ENDGAME_LIMIT) {
-			return p.successors.get(tablebaseLookup(p, this.tablebase));
+			moveList = p.successors.get(tablebaseLookup(p, this.tablebase));
 		} else { // Too many pieces to feasibly generate tablebase - use minimax.
 			Position best = (Position) minimaxAlphaBeta(p, p.turn, 0, p.turn, new HashMap<Position, Object[]>(), Integer.MIN_VALUE, Integer.MAX_VALUE)[0];
-			return p.successors.get(best);
+			moveList = p.successors.get(best);
 		}
+
+
+		ret = new int[moveList.size()];
+		for (int i = 0; i < moveList.size(); i++) {
+			ret[i] = moveList.get(i);
+		}
+
+		return ret;
 	}
 
 	/**
@@ -68,11 +79,11 @@ public class CheckersAI {
 	 * @param turn Whose side to evaluate the position on.
 	 * @return Returns an array whose first element is the optimal successor position and whose second element is the assigned score.
 	 */
-	public static Object[] minimax(Position position, int turn, int depth, HashMap<Position, Object[]> memoize) {
+	public Object[] minimax(Position position, int turn, int depth, HashMap<Position, Object[]> memoize) {
 		// Base case.
 		if (depth >= MAX_DEPTH || position.isLeaf()) {
 			// Call the evaluation function on the opposite turn, because that's the player one level higher who's choosing between evaluations.
-			return new Object[] {position, position.evaluationFunction((position.turn == Square.RED) ? Square.BLACK : Square.RED)};
+			return new Object[] {position, this.evaluationFunction(position, (position.turn == Square.RED) ? Square.BLACK : Square.RED)};
 		}
 
 		// Generate static evaluation values for nodes one level deeper, and find the best (max for red, min for black) static evaluation value
@@ -115,12 +126,12 @@ public class CheckersAI {
 	 * @param beta Value representing the minimum value found so far by a parent minimizer node.
 	 * @return Returns an array whose first element is the optimal successor position and whose second element is the assigned score.
 	 */
-	private static Object[] minimaxAlphaBeta(Position position, int turn, int currTurn, int depth, HashMap<Position, Object[]> memoize, 
+	protected Object[] minimaxAlphaBeta(Position position, int turn, int currTurn, int depth, HashMap<Position, Object[]> memoize, 
 		int alpha, int beta) {
 		// Base case.
 		if (depth >= MAX_DEPTH || position.isLeaf()) {
 			// Call the evaluation function on the opposite turn, because that's the player one level higher who's choosing between evaluations.
-			return new Object[] {position, position.evaluationFunction((position.turn == Square.RED) ? Square.BLACK : Square.RED)};
+			return new Object[] {position, this.evaluationFunction(position, (position.turn == Square.RED) ? Square.BLACK : Square.RED)};
 		}
 
 		// Generate static evaluation values for nodes one level deeper, and find the best (max for red, min for black) static evaluation value
@@ -142,9 +153,15 @@ public class CheckersAI {
 
 				// Update alpha / beta value.
 				if (turn == currTurn) {
-					alpha = tempVal;
+					// Update only if tempVal is better than current value.
+
+					if (tempVal > alpha) {
+						alpha = tempVal;				
+					}
 				} else {
-					beta = tempVal;
+					if (tempVal < beta) {
+						beta = tempVal;
+					}
 				}
 			}
 
@@ -173,12 +190,12 @@ public class CheckersAI {
 	 * @param numKillerMoves The number of killer moves to track.
 	 * @return Returns an array whose first element is the optimal successor position and whose second element is the assigned score.
 	 */
-	public static Object[] minimaxAlphaBeta_KillerHeuristic(Position position, int turn, int currTurn, int depth, 
-		HashMap<Position, Object[]> memoize, int alpha, int beta, HashMap<Integer, HashSet<int[]>> killerMoves, int numKillerMoves) {
+	protected Object[] minimaxAlphaBeta_KillerHeuristic(Position position, int turn, int currTurn, int depth, 
+		HashMap<Position, Object[]> memoize, int alpha, int beta, HashMap<Integer, HashSet<ArrayList<Integer>>> killerMoves, int numKillerMoves) {
 		// Base case.
 		if (depth >= MAX_DEPTH || position.isLeaf()) {
 			// Call the evaluation function on the opposite turn, because that's the player one level higher who's choosing between evaluations.
-			return new Object[] {position, position.evaluationFunction((position.turn == Square.RED) ? Square.BLACK : Square.RED)};
+			return new Object[] {position, this.evaluationFunction(position, (position.turn == Square.RED) ? Square.BLACK : Square.RED)};
 		}
 
 		// If no killer moves are tracked yet for this depth, initialize.
@@ -193,32 +210,39 @@ public class CheckersAI {
 		int bestVal = ((position.turn == turn) ? Integer.MIN_VALUE : Integer.MAX_VALUE), tempVal;
 
 		// Check killer moves first.
-		for (int[] move : killerMoves.get(depth)) {
-			for (Position successor : position.successors.keySet()) {
-				if (Arrays.equals(move, position.successors.get(successor))) {
-					// Compute value of child sub-tree.
-					if (!memoize.containsKey(successor)) {
-						memoize.put(successor, minimaxAlphaBeta_KillerHeuristic(successor, turn, ((currTurn == Square.RED) ? Square.BLACK : Square.RED), depth + 1, memoize, alpha, beta, killerMoves, numKillerMoves));
-					}
-					
-					// Update best.
-					tempVal = (int) memoize.get(successor)[1];
-					if ((position.turn == turn && tempVal >= bestVal) || (position.turn != turn && tempVal <= bestVal)) {
-						bestVal = tempVal;
-						best = new Object[] {successor, tempVal};
+		HashMap<ArrayList<Integer>, Position> inverseMapping = new HashMap<>();
+		for (Position p : position.successors.keySet()) {
+			inverseMapping.put(position.successors.get(p), p);
+		}
 
-						// Update alpha / beta value.
-						if (turn == currTurn) {
+		for (ArrayList<Integer> move : killerMoves.get(depth)) {
+			if (inverseMapping.containsKey(move)) {
+				// Compute value of child sub-tree.
+				if (!memoize.containsKey(inverseMapping.get(move))) {
+					memoize.put(inverseMapping.get(move), minimaxAlphaBeta_KillerHeuristic(inverseMapping.get(move), turn, ((currTurn == Square.RED) ? Square.BLACK : Square.RED), depth + 1, memoize, alpha, beta, killerMoves, numKillerMoves));
+				}
+				
+				// Update best.
+				tempVal = (int) memoize.get(inverseMapping.get(move))[1];
+				if ((position.turn == turn && tempVal >= bestVal) || (position.turn != turn && tempVal <= bestVal)) {
+					bestVal = tempVal;
+					best = new Object[] {inverseMapping.get(move), tempVal};
+
+					// Update alpha / beta value.
+					if (turn == currTurn) {
+						if (tempVal > alpha) {
 							alpha = tempVal;
-						} else {
+						}
+					} else {
+						if (tempVal < beta) {
 							beta = tempVal;
 						}
 					}
+				}
 
-					// Prune the children.
-					if (alpha >= beta) {
-						return best;
-					}
+				// Prune the children.
+				if (alpha >= beta) {
+					return best;
 				}
 			}
 		}
@@ -252,7 +276,7 @@ public class CheckersAI {
 			// Prune the children; position p created a cut-off, so replace one of the stored killer moves with p.
 			if (alpha >= beta) {
 				if (killerMoves.get(depth).size() >= numKillerMoves) { // If killerMoves is full, remove a random element from killerMoves.
-					Iterator<int[]> iter = killerMoves.get(depth).iterator();
+					Iterator<ArrayList<Integer>> iter = killerMoves.get(depth).iterator();
 					iter.next();
 					iter.remove();
 					// killerMoves.get(depth).iterator().remove();
@@ -286,5 +310,77 @@ public class CheckersAI {
 		}
 
 		return best;
+	}
+
+	/**
+	 * The static position evaluation function used in the minimax algorithm.
+	 * @param p The position to evaluate.
+	 * @param turn Whose turn to evaluate on.
+	 * @return The evaluation value.
+	 */
+	protected int evaluationFunction(Position p, int turn) {
+		if ((turn == Square.RED && p.getState() == 1) || (turn == Square.BLACK && p.getState() == -1)) {
+			return Integer.MAX_VALUE; // If the position is won, return infinity.
+		} else if ((turn == Square.RED && p.getState() == -1) || (turn == Square.BLACK && p.getState() == 1)) {
+			return Integer.MIN_VALUE; // If the position is lost, return minus infinity.
+		}
+
+		return evaluationFunction_piecesDifference(p, turn);
+	}
+
+	// Evaluation functions below this line.
+
+	/**
+	 * Simple evaluation function based on number of pieces still standing.
+	 * @param p The position to evaluate.
+	 * @param turn Whose turn it is.
+	 * @return Returns the evaluation value.
+	 */
+	private static int evaluationFunction_numPieces(Position p, int turn) {
+		int val = 0;
+		for (int i = 0; i < p.board.length; i++) {
+			for (int j = 0; j < p.board[i].length; j++) {
+				if (!p.board[i][j].isEmpty()) {
+					if ((p.board[i][j].isRed() && turn == Square.RED) || (p.board[i][j].isBlack() && turn == Square.BLACK)) {
+						if (p.board[i][j].isKing()) {
+							val += 2; // Two points for kings.
+						} else {
+							val++; // One point for normal pieces.
+						}
+					}
+				}
+			}
+		}
+		return val;
+	}
+
+	/**
+	 * Simple evaluation function that returns the difference in number of friendly and enemy pieces.
+	 * @param p The position to evaluate.
+	 * @param turn Whose turn it is.
+	 * @return Returns the evaluation value.
+	 */
+	private static int evaluationFunction_piecesDifference(Position p, int turn) {
+		int val = 0;
+		for (int i = 0; i < p.board.length; i++) {
+			for (int j = 0; j < p.board[i].length; j++) {
+				if (!p.board[i][j].isEmpty()) {
+					if ((p.board[i][j].isRed() && turn == Square.RED) || (p.board[i][j].isBlack() && turn == Square.BLACK)) {
+						if (p.board[i][j].isKing()) {
+							val += 2; // Two points for kings.
+						} else {
+							val++; // One point for normal pieces.
+						}
+					} else if ((p.board[i][j].isRed() && turn == Square.BLACK) || (p.board[i][j].isBlack() && turn == Square.RED)) {
+						if (p.board[i][j].isKing()) {
+							val -= 2;
+						} else {
+							val--;
+						}
+					}
+				}
+			}
+		}
+		return val;
 	}
 }

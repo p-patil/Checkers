@@ -339,7 +339,7 @@ public class Checkers implements Serializable {
 							break;
 						}
 
-						coordinates = player.doubleJump(game.currentPosition, game.getPiece(coordinates[0], coordinates[1]));
+						coordinates = player.doubleJump(game.currentPosition, coordinates[0], coordinates[1]);
 						game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3], true);
 						System.out.println("Opponent double jumped - captured on (" + ((coordinates[0] + coordinates[2]) / 2) + ", " + 
 									   	   ((coordinates[1] + coordinates[3]) / 2) + ")" + ". Board:");
@@ -483,6 +483,52 @@ public class Checkers implements Serializable {
 		reader.close();
 	}
 
+	/** 
+	 * Plays a full game between two AIs. The first AI is assumed to be red.
+	 * @param ai1 The AI program to use as the first player.
+	 * @param ai2 The AI program to use as the second player.
+	 * @return Returns the outcome of the game, following the conventions above.
+	 */
+	public static int play(CheckersAI ai1, CheckersAI ai2) throws Exception {
+		Checkers game = new Checkers();
+		int[] coordinates;
+		int outcome;
+
+		while ((outcome = game.currentPosition.getState()) == 0) {	
+			// System.out.println("turn: " + game.turn());
+			// System.out.println(game.currentPosition);
+			// System.out.println();
+
+			// Check for draw.
+			if (game.drawMoveCount >= DRAW_MOVE_LIMIT) {
+				return 2;
+			}
+
+			if (game.turn() == Square.RED) { // It's the first AI's turn.
+				coordinates = ai1.move(game.currentPosition);
+			} else { // It's the second AI's turn.
+				coordinates = ai2.move(game.currentPosition);
+			}
+
+			if (coordinates.length > 4) { // Move was a double jump.
+				for (int i = 0; i < coordinates.length; i += 4) {
+					if (!game.move(coordinates[i], coordinates[i + 1], coordinates[i + 2], coordinates[i + 3], true)) {
+						throw new Exception("Illegal double jump returned.");
+					}
+				}
+
+				game.toggleTurn();
+			} else { // Normal move.
+				if (!game.move(coordinates[0], coordinates[1], coordinates[2], coordinates[3], false)) {
+					throw new Exception("Illegal move returned.");
+				}
+			}
+		}
+		
+		return outcome;
+	}
+
+
 	/**
 	 * Moves the given piece from the initial square to the final square, assuming the move is legal. Returns whether or not the move is legal.
 	 * @param i_initial The vertical coordinate of the source square.
@@ -523,6 +569,13 @@ public class Checkers implements Serializable {
 	 */
 	public int turn() {
 		return this.currentPosition.turn;
+	}
+
+	/**
+	 * Toggles the turn.
+	 */
+	public void toggleTurn() {
+		this.currentPosition = new Position(this.currentPosition, (this.currentPosition.turn == Square.RED) ? Square.BLACK : Square.RED);
 	}
 
 	// Helper methods below this line.
