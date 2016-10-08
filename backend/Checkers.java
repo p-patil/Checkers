@@ -21,6 +21,7 @@ public class Checkers implements Serializable {
 	public Checkers() {
 		this.currentPosition = new Position();
 		this.drawMoveCount = 0;
+        this.meow = 10
 	}
 
 	/**
